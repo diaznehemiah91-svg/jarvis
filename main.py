@@ -4,6 +4,9 @@ import eel
 from engine.features import *
 from engine.command import *
 from engine.auth import recoganize
+import engine.trading.api  # registers all @eel.expose trading endpoints
+
+
 def start():
     
     eel.init("www")

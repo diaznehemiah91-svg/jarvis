@@ -58,6 +58,36 @@ def allCommands(message=1):
             from engine.features import PlayYoutube
             PlayYoutube(query)
         
+        elif "market regime" in query or "flow tracker" in query or "institutional flow" in query:
+            from engine.trading.regime import compute_regime_score
+            from engine.trading.alerts import generate_full_briefing
+            regime = compute_regime_score()
+            speak(f"Current market regime: {regime['regime_label']}. "
+                  f"Regime score is {regime['regime_score']:.2f}. VIX at {regime['vix_level']:.1f}.")
+            speak(regime['actions'][0] if regime['actions'] else "No specific actions.")
+
+        elif "flow scan" in query or "whale block" in query or "options sweep" in query:
+            from engine.trading.flow_tracker import run_full_scan
+            speak("Running institutional flow scan across all tracked tickers.")
+            result = run_full_scan()
+            total = result['total_alerts']
+            speak(f"Scan complete. Detected {total} institutional flow signals. "
+                  f"{len(result['whale_blocks'])} whale blocks and "
+                  f"{len(result['options_sweeps'])} options sweeps.")
+
+        elif "sector sentiment" in query or "market sentiment" in query:
+            from engine.trading.sentiment import score_reddit, score_news
+            speak("Running sentiment analysis across all sectors. Please wait.")
+            score_reddit()
+            score_news()
+            speak("Sentiment pipeline complete. Check the flow tracker dashboard for details.")
+
+        elif "refresh market" in query or "update tickers" in query:
+            from engine.trading.market_data import refresh_all_tickers
+            speak("Refreshing market data for all tracked tickers.")
+            result = refresh_all_tickers()
+            speak(f"Market data refresh complete. Updated {len(result['refreshed'])} tickers.")
+
         elif "send message" in query or "phone call" in query or "video call" in query:
             from engine.features import findContact, whatsApp, makeCall, sendMessage
             contact_no, name = findContact(query)
