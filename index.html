@@ -1617,14 +1617,29 @@ document.getElementById('sm-test-gemini').onclick = async () => {
   const st = document.getElementById('sm-gemini-status');
   if (!key) { st.textContent = 'Enter a key first'; st.className = 'sm-status err'; return; }
   st.textContent = 'Testing…'; st.className = 'sm-status wait';
-  try {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ contents:[{role:'user',parts:[{text:'Reply with exactly one word: ONLINE'}]}], generationConfig:{maxOutputTokens:8} })
-    });
-    if (r.ok) { st.textContent = '✓ Connected'; st.className = 'sm-status ok'; }
-    else { const e=await r.json().catch(()=>({})); st.textContent = `Error ${r.status}: ${e?.error?.message||'invalid key'}`; st.className = 'sm-status err'; }
-  } catch(e) { st.textContent = 'Network error'; st.className = 'sm-status err'; }
+  const MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+  for (const model of MODELS) {
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ contents:[{role:'user',parts:[{text:'Reply with exactly one word: ONLINE'}]}], generationConfig:{maxOutputTokens:8} })
+      });
+      if (r.ok) {
+        // Save the working model so callGemini uses it
+        const s = getSettings(); s.geminiModel = model; saveSettings(s);
+        st.textContent = `✓ Connected (${model})`; st.className = 'sm-status ok'; return;
+      }
+      const e = await r.json().catch(()=>({}));
+      const msg = e?.error?.message || '';
+      // 400 = bad key, 403 = API not enabled — stop trying
+      if (r.status === 400 || r.status === 403) {
+        const hint = r.status===403 ? ' — enable Generative Language API in Google Cloud' : ' — check key is correct';
+        st.textContent = `Error ${r.status}${hint}`; st.className = 'sm-status err'; return;
+      }
+      // 404 = model not found, try next
+    } catch(e) { st.textContent = 'Network error — check internet connection'; st.className = 'sm-status err'; return; }
+  }
+  st.textContent = 'No models available for this key'; st.className = 'sm-status err';
 };
 
 document.getElementById('sm-test-finnhub').onclick = async () => {
@@ -1738,24 +1753,35 @@ function buildGeminiContext() {
   return ctx;
 }
 
+const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+
 async function callGemini(userMsg) {
   const s = getSettings();
   if (!s.geminiKey) return null;
   const sys = 'You are JARVIS, elite day trading AI for YP Strategic Research. Style: tactical, high signal-to-noise, max 200 words. Lead with the actionable insight. Use HTML only (no markdown): <strong> for tickers/prices, <span class="pos"> for bullish, <span class="neg"> for bearish. Never invent prices — use only the provided market context.';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${s.geminiKey}`;
-  try {
-    const r = await fetch(url, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        system_instruction: { parts: [{text: sys}] },
-        contents: [{ role:'user', parts:[{text: buildGeminiContext() + '\n\nUser: ' + userMsg}] }],
-        generationConfig: { maxOutputTokens: 512, temperature: 0.65 }
-      })
-    });
-    if (!r.ok) { console.warn('Gemini', r.status, await r.text().catch(()=>'')); return null; }
-    const d = await r.json();
-    return d?.candidates?.[0]?.content?.parts?.[0]?.text || null;
-  } catch(e) { console.warn('Gemini fetch error', e); return null; }
+  const body = JSON.stringify({
+    system_instruction: { parts: [{text: sys}] },
+    contents: [{ role:'user', parts:[{text: buildGeminiContext() + '\n\nUser: ' + userMsg}] }],
+    generationConfig: { maxOutputTokens: 512, temperature: 0.65 }
+  });
+  // Try saved working model first, then fall through the list
+  const preferred = s.geminiModel || 'gemini-2.0-flash';
+  const order = [preferred, ...GEMINI_MODELS.filter(m => m !== preferred)];
+  for (const model of order) {
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${s.geminiKey}`, {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body
+      });
+      if (r.ok) {
+        if (model !== s.geminiModel) { s.geminiModel = model; saveSettings(s); } // cache the winner
+        const d = await r.json();
+        return d?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+      }
+      if (r.status === 400 || r.status === 403) { console.warn('Gemini key error', r.status); return null; }
+      // 404 = model unavailable, try next
+    } catch(e) { console.warn('Gemini fetch error', e); return null; }
+  }
+  return null;
 }
 
 boot();
