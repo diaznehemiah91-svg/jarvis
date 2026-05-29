@@ -229,5 +229,30 @@ def getDataStatus():
     from engine.trading import finnhub_client as finnhub
     return json.dumps(finnhub.status())
 
+@api('getCompanyNews')
+def getCompanyNews(ticker='NVDA', limit=12):
+    from engine.trading import news_aggregator as na
+    return json.dumps(na.get_company_news(ticker, limit))
+
+@api('getMarketNews')
+def getMarketNews(limit=20):
+    from engine.trading import news_aggregator as na
+    return json.dumps(na.get_market_news(limit))
+
+@api('getPowerNews')
+def getPowerNews(limit=15):
+    from engine.trading import news_aggregator as na
+    return json.dumps(na.get_power_news(None, limit))
+
+@api('getNewsStatus')
+def getNewsStatus():
+    from engine.trading import news_aggregator as na
+    return json.dumps(na.status())
+
+@api('searchTicker')
+def searchTicker(query='', limit=15):
+    from engine.trading.tickers import search_ticker
+    return json.dumps(search_ticker(query, limit))
+
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=8765, debug=False)

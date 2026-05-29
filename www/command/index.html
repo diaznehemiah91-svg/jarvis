@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <script type="text/javascript" src="/eel.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
 </head>
 <body>
 
@@ -77,6 +78,9 @@
   </button>
   <button class="rail-btn" data-view="flow" title="Institutional Flow">
     <span class="rail-ico">≋</span><span class="rail-lbl">Flow</span>
+  </button>
+  <button class="rail-btn" data-view="news" title="Market News">
+    <span class="rail-ico">⚡</span><span class="rail-lbl">News</span>
   </button>
   <div class="rail-spacer"></div>
   <button class="rail-btn" id="refreshBtn" title="Refresh all data (R)">
@@ -153,18 +157,42 @@
     </div>
   </section>
 
-  <!-- ── HEAT MAPS ─────────────────────────────────────────────────── -->
+  <!-- ── 3D GLOBE ──────────────────────────────────────────────────── -->
   <section class="view" id="view-heatmap">
+    <div class="globe-layout">
+      <div class="globe-stage" id="globeStage"></div>
+      <aside class="globe-sidebar glass">
+        <div class="globe-sidebar-head">
+          <div class="card-eyebrow" style="margin-bottom:10px">GLOBAL INTEL MAP</div>
+          <div class="layer-filter" id="layerFilter">
+            <button class="chip active" data-layer="all">All</button>
+            <button class="chip" data-layer="AI Hardware">AI HW</button>
+            <button class="chip" data-layer="Infrastructure">Infra</button>
+            <button class="chip" data-layer="Frontier">Frontier</button>
+            <button class="chip" data-layer="AI Software">AI SW</button>
+            <button class="chip" data-layer="Mega Cap Tech">Mega</button>
+          </div>
+          <div style="font-size:10px;color:var(--text-faint);margin-top:8px">
+            Drag to rotate · Click marker to inspect
+          </div>
+        </div>
+        <div class="globe-movers" id="globeMovers"></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ── NEWS ─────────────────────────────────────────────────────── -->
+  <section class="view" id="view-news">
     <div class="view-head">
-      <h2>SECTOR HEAT MAPS</h2>
-      <div class="layer-filter" id="layerFilter">
-        <button class="chip active" data-layer="all">All Layers</button>
-        <button class="chip" data-layer="AI Hardware">AI Hardware</button>
-        <button class="chip" data-layer="Infrastructure">Infrastructure</button>
-        <button class="chip" data-layer="Frontier">Frontier</button>
+      <h2>⚡ MARKET INTELLIGENCE</h2>
+      <div class="news-tabs">
+        <button class="chip active" data-news="power">Power Feed</button>
+        <button class="chip" data-news="market">Market</button>
       </div>
     </div>
-    <div class="heat-wrap" id="heatWrap"></div>
+    <div class="news-grid" id="newsGrid">
+      <div style="color:var(--text-faint);padding:20px">Loading news feed…</div>
+    </div>
   </section>
 
   <!-- ── OPPORTUNITIES ─────────────────────────────────────────────── -->
@@ -237,6 +265,7 @@
 <div class="toast-stack" id="toastStack"></div>
 
 <script src="voice.js"></script>
+<script src="globe.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

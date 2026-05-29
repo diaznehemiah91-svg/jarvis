@@ -201,8 +201,8 @@ def get_top_opportunities(limit: int = 12) -> dict:
 
 # ── Options ideas ─────────────────────────────────────────────────────────────
 
-def _next_monthly_expiry() -> str:
-    """Third Friday of the current or next month."""
+def _next_monthly_expiry(skip: int = 0) -> str:
+    """Third Friday of the next monthly expiry. skip=1 returns the one after."""
     today = datetime.now()
     year, month = today.year, today.month
 
@@ -220,6 +220,14 @@ def _next_monthly_expiry() -> str:
             month = 1
             year += 1
         tf = third_friday(year, month)
+
+    for _ in range(skip):
+        month += 1
+        if month > 12:
+            month = 1
+            year += 1
+        tf = third_friday(year, month)
+
     return tf.strftime("%Y-%m-%d")
 
 
@@ -236,50 +244,101 @@ def _round_strike(price: float) -> float:
     return round(round(price / step) * step, 2)
 
 
-def get_options_ideas(limit: int = 10) -> dict:
+def get_options_ideas(limit: int = 16) -> dict:
     """
-    Generate options ideas from the highest-conviction directional names.
-    Slightly OTM strikes on the nearest monthly expiry.
+    Generate a rich set of options ideas from the highest-conviction names.
+
+    For each name we suggest a strategy appropriate to its conviction and
+    direction, with concrete strikes, expiry, and a breakeven estimate:
+      • High conviction directional  → ATM long Call/Put (max delta exposure)
+      • Medium conviction directional → ~5% OTM long Call/Put (cheaper, leveraged)
+      • Defined-risk alternative      → debit spread (OTM long / further-OTM short)
+      • Bullish + income tilt         → cash-secured put (~5% OTM)
     """
-    opps = get_top_opportunities(limit=30)
+    opps = get_top_opportunities(limit=40)
     expiry = _next_monthly_expiry()
+    far_expiry = _next_monthly_expiry(skip=1)
     ideas = []
 
-    pool = opps["buys"] + opps["sells"]
-    pool = sorted(pool, key=lambda x: x["conviction"], reverse=True)
+    pool = sorted(opps["buys"] + opps["sells"], key=lambda x: x["conviction"], reverse=True)
 
     for o in pool:
-        if not o.get("price") or o["conviction"] < 25:
+        if not o.get("price") or o["conviction"] < 20:
             continue
         price = o["price"]
         bullish = o["direction"] == "bullish"
+        conv = o["conviction"]
+        opt_type = "CALL" if bullish else "PUT"
 
-        if bullish:
-            strike = _round_strike(price * 1.05)   # ~5% OTM call
-            opt_type = "CALL"
+        if conv >= 55:
+            # Strong: ATM long option on the standard monthly.
+            strike = _round_strike(price)
+            ideas.append(_opt_idea(o, "Long " + opt_type.title(), opt_type,
+                                   strike, expiry, price,
+                                   "ATM — maximum directional exposure on a high-conviction signal"))
         else:
-            strike = _round_strike(price * 0.95)   # ~5% OTM put
-            opt_type = "PUT"
+            # Medium: ~5% OTM long option (cheaper, more leverage).
+            otm = price * (1.05 if bullish else 0.95)
+            strike = _round_strike(otm)
+            ideas.append(_opt_idea(o, "Long " + opt_type.title(), opt_type,
+                                   strike, expiry, price,
+                                   "~5% OTM — leveraged play on continuation"))
 
-        ideas.append({
-            "ticker": o["ticker"],
-            "type": opt_type,
-            "strike": strike,
-            "expiry": expiry,
-            "underlying_price": price,
-            "conviction": o["conviction"],
-            "sector": o["sector"],
-            "rationale": _options_rationale(o, opt_type),
-            "signals": o["signals"],
-            "contract": f"{o['ticker']} {expiry} ${strike} {opt_type}",
-        })
+        # Defined-risk debit spread for the very top names (caps cost & risk).
+        if conv >= 45 and len(ideas) < limit:
+            long_k = _round_strike(price * (1.03 if bullish else 0.97))
+            short_k = _round_strike(price * (1.12 if bullish else 0.88))
+            spread = "Call Debit Spread" if bullish else "Put Debit Spread"
+            o2 = dict(o)
+            ideas.append({
+                "ticker": o["ticker"], "type": opt_type, "strategy": spread,
+                "strike": long_k, "short_strike": short_k,
+                "expiry": far_expiry, "underlying_price": price,
+                "conviction": conv, "sector": o["sector"],
+                "rationale": f"Defined-risk {spread.lower()}: buy ${long_k}, sell ${short_k}. "
+                             f"Caps cost and risk while keeping {('upside' if bullish else 'downside')} exposure.",
+                "signals": o["signals"],
+                "breakeven": long_k + (1 if bullish else -1) * round(abs(short_k - long_k) * 0.4, 2),
+                "contract": f"{o['ticker']} {far_expiry} ${long_k}/${short_k} {spread}",
+            })
+
+        # Income idea: cash-secured put on bullish names.
+        if bullish and conv >= 40 and len(ideas) < limit:
+            csp_k = _round_strike(price * 0.95)
+            ideas.append({
+                "ticker": o["ticker"], "type": "PUT", "strategy": "Cash-Secured Put",
+                "strike": csp_k, "expiry": expiry, "underlying_price": price,
+                "conviction": conv, "sector": o["sector"],
+                "rationale": f"Sell the ${csp_k} put to collect premium and get paid to "
+                             f"potentially buy {o['ticker']} ~5% lower. Bullish/neutral income play.",
+                "signals": o["signals"],
+                "breakeven": csp_k,
+                "contract": f"{o['ticker']} {expiry} ${csp_k} PUT (short)",
+            })
+
         if len(ideas) >= limit:
             break
 
     return {
         "expiry": expiry,
+        "far_expiry": far_expiry,
         "generated_at": datetime.now().isoformat(),
+        "count": len(ideas),
         "ideas": ideas,
+    }
+
+
+def _opt_idea(o, strategy, opt_type, strike, expiry, price, note):
+    bullish = opt_type == "CALL"
+    breakeven = strike + (1 if bullish else -1) * round(price * 0.03, 2)
+    return {
+        "ticker": o["ticker"], "type": opt_type, "strategy": strategy,
+        "strike": strike, "expiry": expiry, "underlying_price": price,
+        "conviction": o["conviction"], "sector": o["sector"],
+        "rationale": f"{note}. {_options_rationale(o, opt_type)}",
+        "signals": o["signals"],
+        "breakeven": breakeven,
+        "contract": f"{o['ticker']} {expiry} ${strike} {opt_type}",
     }
 
 

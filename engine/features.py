@@ -10,26 +10,51 @@ import struct
 import subprocess
 import time
 import webbrowser
-from playsound import playsound
 import eel
-import pyaudio
-import pyautogui
 from engine.command import speak
 from engine.config import ASSISTANT_NAME, LLM_KEY
-# Playing assiatnt sound function
-import pywhatkit as kit
-import pvporcupine
-
 from engine.helper import extract_yt_term, markdown_to_text, remove_words
-from hugchat import hugchat
+
+# ── Optional heavy dependencies ────────────────────────────────────────────────
+# JARVIS launches even if these aren't installed; the specific feature that
+# needs a missing package will report it instead of crashing the whole app.
+try:
+    from playsound import playsound
+except Exception:
+    playsound = None
+try:
+    import pyaudio
+except Exception:
+    pyaudio = None
+try:
+    import pyautogui
+except Exception:
+    pyautogui = None
+try:
+    import pywhatkit as kit
+except Exception:
+    kit = None
+try:
+    import pvporcupine
+except Exception:
+    pvporcupine = None
+try:
+    from hugchat import hugchat
+except Exception:
+    hugchat = None
 
 con = sqlite3.connect("jarvis.db")
 cursor = con.cursor()
 
 @eel.expose
 def playAssistantSound():
-    music_dir = "www\\assets\\audio\\start_sound.mp3"
-    playsound(music_dir)
+    if playsound is None:
+        return
+    try:
+        music_dir = os.path.join("www", "assets", "audio", "start_sound.mp3")
+        playsound(music_dir)
+    except Exception as e:
+        print(f"[jarvis] could not play start sound: {e}")
 
     
 def openCommand(query):
@@ -73,6 +98,9 @@ def openCommand(query):
 def PlayYoutube(query):
     search_term = extract_yt_term(query)
     speak("Playing "+search_term+" on YouTube")
+    if kit is None:
+        webbrowser.open("https://www.youtube.com/results?search_query=" + quote(search_term))
+        return
     kit.playonyt(search_term)
 
 
@@ -125,13 +153,16 @@ def getWeather(query):
 
 
 def hotword():
+    if pvporcupine is None or pyaudio is None:
+        print("[jarvis] hotword detection unavailable (pvporcupine/pyaudio not installed).")
+        return
     porcupine=None
     paud=None
     audio_stream=None
     try:
-       
-        # pre trained keywords    
-        porcupine=pvporcupine.create(keywords=["jarvis","alexa"]) 
+
+        # pre trained keywords
+        porcupine=pvporcupine.create(keywords=["jarvis","alexa"])
         paud=pyaudio.PyAudio()
         audio_stream=paud.open(rate=porcupine.sample_rate,channels=1,format=pyaudio.paInt16,input=True,frames_per_buffer=porcupine.frame_length)
         
@@ -225,9 +256,12 @@ def whatsApp(mobile_no, message, flag, name):
     pyautogui.hotkey('enter')
     speak(jarvis_message)
 
-# chat bot 
+# chat bot
 def chatBot(query):
     user_input = query.lower()
+    if hugchat is None:
+        speak("Chat is unavailable because the hugchat package isn't installed.")
+        return ""
     chatbot = hugchat.ChatBot(cookie_path="engine\cookies.json")
     id = chatbot.new_conversation()
     chatbot.change_conversation(id)
@@ -270,8 +304,19 @@ def sendMessage(message, mobileNo, name):
     tapEvents(957, 1397)
     speak("message send successfully to "+name)
 
-import google.generativeai as genai
+try:
+    import google.generativeai as genai
+except Exception:
+    genai = None
+
+
 def geminai(query):
+    if genai is None:
+        speak("The Gemini package isn't installed, so chat is unavailable right now.")
+        return
+    if not (LLM_KEY or "").strip():
+        speak("Add your Gemini API key to enable conversational chat.")
+        return
     try:
         query = query.replace(ASSISTANT_NAME, "")
         query = query.replace("search", "")
@@ -287,6 +332,7 @@ def geminai(query):
         speak(filter_text)
     except Exception as e:
         print("Error:", e)
+        speak("Sorry, I ran into an error reaching the chat service.")
 
 # Settings Modal 
 

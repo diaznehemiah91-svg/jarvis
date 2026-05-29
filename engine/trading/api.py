@@ -163,6 +163,40 @@ def getTickerAssessment(ticker: str):
     return json.dumps(score_ticker(ticker))
 
 
+# ── News engine ───────────────────────────────────────────────────────────────
+
+@eel.expose
+def getCompanyNews(ticker: str, limit: int = 12):
+    from engine.trading import news_aggregator as na
+    return json.dumps(na.get_company_news(ticker, limit))
+
+
+@eel.expose
+def getMarketNews(limit: int = 20):
+    from engine.trading import news_aggregator as na
+    return json.dumps(na.get_market_news(limit))
+
+
+@eel.expose
+def getPowerNews(limit: int = 15):
+    from engine.trading import news_aggregator as na
+    return json.dumps(na.get_power_news(None, limit))
+
+
+@eel.expose
+def getNewsStatus():
+    from engine.trading import news_aggregator as na
+    return json.dumps(na.status())
+
+
+# ── Whole-market ticker search ──────────────────────────────────────────────────
+
+@eel.expose
+def searchTicker(query: str, limit: int = 15):
+    from engine.trading.tickers import search_ticker
+    return json.dumps(search_ticker(query, limit))
+
+
 # ── Data source status ────────────────────────────────────────────────────────
 
 @eel.expose

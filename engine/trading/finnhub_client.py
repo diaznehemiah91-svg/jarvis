@@ -41,6 +41,9 @@ TTL_QUOTE = 60
 TTL_RECOMMENDATION = 12 * 3600
 TTL_NEWS = 2 * 3600
 TTL_INSIDER = 12 * 3600
+TTL_MARKET_NEWS = 30 * 60
+TTL_SYMBOL_SEARCH = 24 * 3600
+TTL_SYMBOLS = 7 * 24 * 3600
 
 
 def _key() -> str:
@@ -159,6 +162,32 @@ def get_company_news(ticker: str, days: int = 7) -> list | None:
 def get_insider_transactions(ticker: str) -> dict | None:
     """Insider buys/sells — real institutional/insider flow."""
     return _get("/stock/insider-transactions", {"symbol": ticker}, TTL_INSIDER)
+
+
+def get_market_news(category: str = "general") -> list | None:
+    """Broad market news headlines (general/forex/crypto/merger)."""
+    return _get("/news", {"category": category}, TTL_MARKET_NEWS)
+
+
+def search_symbol(query: str) -> list | None:
+    """
+    Symbol lookup across the whole market. Returns matches like
+    [{symbol, description, type, displaySymbol}, ...].
+    """
+    d = _get("/search", {"q": query}, TTL_SYMBOL_SEARCH)
+    if not d:
+        return None
+    return d.get("result", [])
+
+
+def list_symbols(exchange: str = "US") -> list | None:
+    """Full tradable symbol universe for an exchange (large; cached 7 days)."""
+    return _get("/stock/symbol", {"exchange": exchange}, TTL_SYMBOLS)
+
+
+def company_profile(ticker: str) -> dict | None:
+    """Company profile: name, industry, market cap, logo, etc."""
+    return _get("/stock/profile2", {"symbol": ticker}, TTL_RECOMMENDATION)
 
 
 # ── Derived signals ───────────────────────────────────────────────────────────

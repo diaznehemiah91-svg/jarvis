@@ -194,7 +194,11 @@ _PRICE_ANCHORS = {
     "MOD": 110, "ANET": 400, "CSCO": 58, "MRVL": 88, "CRDO": 65,
     "CIEN": 78, "NOK": 4.5, "CEG": 280, "NEE": 72, "GEV": 480,
     "VST": 165, "EMR": 120, "NVT": 72, "LIN": 460, "FCX": 42,
-    "IONQ": 38, "RGTI": 14, "QBTS": 18, "ASTS": 32, "RDW": 18,
+    "IONQ": 38, "RGTI": 14, "QBTS": 18, "ASTS": 32, "RDW": 18, "RKLB": 24,
+    # Mega-cap platforms & software
+    "AAPL": 230, "MSFT": 425, "GOOGL": 178, "AMZN": 205, "META": 580,
+    "PLTR": 62, "CRM": 330, "NOW": 1000, "SNOW": 165, "ORCL": 185, "ADBE": 540,
+    "TSLA": 340, "RIVN": 14,
     "^VIX": 16, "SPY": 595,
 }
 

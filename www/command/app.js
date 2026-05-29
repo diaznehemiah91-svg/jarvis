@@ -9,11 +9,15 @@ const State = {
   options: null,
   heatmap: null,
   briefing: null,
+  news: null,
   view: 'overview',
   oppTab: 'buys',
   flowFilter: 'all',
   layerFilter: 'all',
+  newsTab: 'power',
 };
+
+let globeInitialized = false;
 
 // ── eel call helper (works with real eel and the demo shim) ──────────────────
 function call(fn, ...args) {
@@ -76,7 +80,7 @@ async function loadAll() {
   renderOverviewOpps();
   renderFeed();
   renderMiniHeat();
-  renderHeatmap();
+  if (globeInitialized) renderGlobe(State.layerFilter);
   renderOpportunities();
   renderOptions();
   renderFlow();
@@ -248,7 +252,83 @@ function renderMiniHeat() {
     </div>`).join('');
 }
 
-// ════ FULL HEATMAP VIEW ═════════════════════════════════════════════════════
+// ════ 3D GLOBE VIEW ══════════════════════════════════════════════════════════
+function renderGlobe(layerFilter) {
+  const allTiles = [];
+  (State.heatmap?.sectors || []).forEach(s => {
+    s.tiles.forEach(t => allTiles.push({ ...t, layer: s.layer, sector: s.name }));
+  });
+  if (typeof Globe !== 'undefined') Globe.setData(allTiles, layerFilter || State.layerFilter || 'all');
+  renderGlobeMovers(allTiles, layerFilter || State.layerFilter || 'all');
+}
+
+function renderGlobeMovers(tiles, layerFilter) {
+  const filtered = (layerFilter && layerFilter !== 'all')
+    ? tiles.filter(t => t.layer === layerFilter)
+    : tiles;
+  const sorted = [...filtered].sort((a, b) => Math.abs(b.net_score) - Math.abs(a.net_score));
+  const el = document.getElementById('globeMovers');
+  if (!el) return;
+  el.innerHTML = sorted.map(t => {
+    const col  = t.net_score >= 0 ? 'var(--green)' : 'var(--red)';
+    const sign = t.net_score >= 0 ? '+' : '';
+    const w    = Math.min(100, Math.abs(t.net_score) * 100);
+    return `<div class="globe-mover-row" onclick="openDrawer('${t.ticker}')">
+      <span class="globe-mover-sym" style="color:${col}">${t.ticker}</span>
+      <div class="globe-mover-bar"><i style="width:${w}%;background:${col}"></i></div>
+      <span class="globe-mover-score" style="color:${col}">${sign}${Number(t.net_score).toFixed(2)}</span>
+    </div>`;
+  }).join('') || '<div style="color:var(--text-faint);padding:8px 4px;font-size:12px">No data — sync first.</div>';
+}
+
+// ════ NEWS VIEW ═══════════════════════════════════════════════════════════════
+async function loadNews() {
+  const [power, market] = await Promise.all([
+    call('getPowerNews', 18),
+    call('getMarketNews', 20),
+  ]);
+  State.news = { power, market };
+  renderNews();
+}
+
+function renderNews() {
+  const tab  = State.newsTab || 'power';
+  const data = State.news?.[tab];
+  const articles = Array.isArray(data) ? data : (data?.articles || []);
+  const el = document.getElementById('newsGrid');
+  if (!el) return;
+  if (!articles.length) {
+    el.innerHTML = '<div style="color:var(--text-faint);padding:20px">No articles available — click Sync to fetch.</div>';
+    return;
+  }
+  el.innerHTML = articles.slice(0, 24).map(a => {
+    const ts   = a.ts ? new Date(a.ts * 1000) : null;
+    const time = ts ? ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+    const pw   = a.power_score != null ? (a.power_score * 100).toFixed(0) : null;
+    const sent = a.sentiment || 0;
+    const sentHtml = sent > 0.08
+      ? `<span class="news-sent bull">▲ ${(sent*100).toFixed(0)}%</span>`
+      : sent < -0.08
+      ? `<span class="news-sent bear">▼ ${Math.abs(sent*100).toFixed(0)}%</span>`
+      : `<span class="news-sent neut">◆ Neutral</span>`;
+    const url = a.url ? a.url.replace(/\\/g,'\\\\').replace(/'/g,"\\'") : '';
+    return `<article class="news-card" ${url ? `onclick="window.open('${url}','_blank')" style="cursor:pointer"` : ''}>
+      <div class="news-card-head">
+        <span class="news-source">${a.source || 'News'}</span>
+        ${pw ? `<span class="news-power">⚡ ${pw}</span>` : ''}
+      </div>
+      <div class="news-title">${a.title || '—'}</div>
+      ${a.summary ? `<div class="news-summary">${a.summary}</div>` : ''}
+      <div class="news-foot">
+        ${a.ticker ? `<span class="news-ticker">${a.ticker}</span>` : ''}
+        ${sentHtml}
+        <span class="news-time">${time}</span>
+      </div>
+    </article>`;
+  }).join('');
+}
+
+// ════ FULL HEATMAP VIEW (legacy flat tiles — kept as fallback) ════════════════
 function renderHeatmap() {
   const sectors = (State.heatmap?.sectors || []).filter(
     s => State.layerFilter === 'all' || s.layer === State.layerFilter
@@ -406,7 +486,15 @@ function initNav() {
   }));
   document.querySelectorAll('[data-layer]').forEach(c => c.addEventListener('click', (e) => {
     document.querySelectorAll('[data-layer]').forEach(x => x.classList.remove('active'));
-    e.target.classList.add('active'); State.layerFilter = e.target.dataset.layer; renderHeatmap();
+    e.target.classList.add('active');
+    State.layerFilter = e.target.dataset.layer;
+    renderGlobe(State.layerFilter);
+  }));
+  document.querySelectorAll('[data-news]').forEach(c => c.addEventListener('click', (e) => {
+    document.querySelectorAll('[data-news]').forEach(x => x.classList.remove('active'));
+    e.target.classList.add('active');
+    State.newsTab = e.target.dataset.news;
+    renderNews();
   }));
 }
 
@@ -416,6 +504,17 @@ function switchView(view) {
   document.getElementById('view-' + view)?.classList.add('active');
   document.querySelectorAll('.rail-btn[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
   document.querySelector('.stage').scrollTop = 0;
+
+  if (view === 'heatmap') {
+    if (!globeInitialized && typeof Globe !== 'undefined') {
+      globeInitialized = true;
+      Globe.init('globeStage', openDrawer);
+      if (State.heatmap) renderGlobe(State.layerFilter);
+    }
+  }
+  if (view === 'news' && !State.news) {
+    loadNews();
+  }
 }
 
 // ════ BUTTONS ═══════════════════════════════════════════════════════════════

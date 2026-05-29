@@ -66,6 +66,25 @@ SECTOR_MAP = {
         "tickers": ["LIN", "FCX"],
         "desc": "Process gases for fabs and copper for power interconnects",
     },
+    # ── Mega-Cap Platforms & Software ────────────────────────────────────────
+    "mega_cap_tech": {
+        "name": "Mega-Cap Platforms",
+        "layer": "AI Software",
+        "tickers": ["AAPL", "MSFT", "GOOGL", "AMZN", "META"],
+        "desc": "Hyperscalers and platform giants driving AI demand",
+    },
+    "ai_software": {
+        "name": "AI & Enterprise Software",
+        "layer": "AI Software",
+        "tickers": ["PLTR", "CRM", "NOW", "SNOW", "ORCL", "ADBE"],
+        "desc": "Applied-AI, data, and enterprise software layer",
+    },
+    "ev_autonomy": {
+        "name": "EV & Autonomy",
+        "layer": "AI Software",
+        "tickers": ["TSLA", "RIVN"],
+        "desc": "Electric vehicles, robotaxi, and real-world AI",
+    },
     # ── Next-Gen Frontiers ────────────────────────────────────────────────────
     "quantum": {
         "name": "Quantum Pioneers",
@@ -76,8 +95,8 @@ SECTOR_MAP = {
     "space_satellite": {
         "name": "Space & Satellite Networks",
         "layer": "Frontier",
-        "tickers": ["ASTS", "RDW"],
-        "desc": "Direct-to-device satellite broadband infrastructure",
+        "tickers": ["ASTS", "RDW", "RKLB"],
+        "desc": "Direct-to-device satellite broadband and launch infrastructure",
     },
 }
 
@@ -111,4 +130,73 @@ def get_tickers_by_layer(layer: str) -> list[str]:
     return list(dict.fromkeys(out))  # dedupe, preserve order
 
 
-LAYERS = ["AI Hardware", "Infrastructure", "Frontier"]
+LAYERS = ["AI Hardware", "AI Software", "Infrastructure", "Frontier"]
+
+
+# ── Whole-market symbol search ──────────────────────────────────────────────────
+# Common large-cap fallbacks so search works even without a live Finnhub key.
+_POPULAR = {
+    "AAPL": "Apple Inc", "MSFT": "Microsoft Corp", "GOOGL": "Alphabet Inc",
+    "AMZN": "Amazon.com Inc", "META": "Meta Platforms Inc", "TSLA": "Tesla Inc",
+    "NVDA": "NVIDIA Corp", "AMD": "Advanced Micro Devices", "NFLX": "Netflix Inc",
+    "JPM": "JPMorgan Chase", "BAC": "Bank of America", "WMT": "Walmart Inc",
+    "DIS": "Walt Disney Co", "KO": "Coca-Cola Co", "PEP": "PepsiCo Inc",
+    "XOM": "Exxon Mobil", "CVX": "Chevron Corp", "PFE": "Pfizer Inc",
+    "INTC": "Intel Corp", "BA": "Boeing Co", "UBER": "Uber Technologies",
+    "COIN": "Coinbase Global", "PLTR": "Palantir Technologies", "SOFI": "SoFi Technologies",
+    "F": "Ford Motor Co", "GM": "General Motors", "T": "AT&T Inc",
+    "SPY": "S&P 500 ETF", "QQQ": "Nasdaq 100 ETF", "VTI": "Total Market ETF",
+}
+
+
+def search_ticker(query: str, limit: int = 15) -> list[dict]:
+    """
+    Search the entire stock market for a symbol. Uses the live Finnhub symbol
+    search when a key is configured; otherwise falls back to the curated
+    watchlist plus a built-in list of popular names so search always works.
+    Returns [{symbol, name, in_watchlist}, ...].
+    """
+    q = (query or "").strip().upper()
+    if not q:
+        return []
+
+    results = []
+    seen = set()
+
+    def add(sym, name):
+        sym = (sym or "").upper()
+        if sym and sym not in seen:
+            seen.add(sym)
+            results.append({
+                "symbol": sym,
+                "name": name or "",
+                "in_watchlist": sym in _TICKER_TO_SECTOR,
+                "sector": SECTOR_MAP.get(_TICKER_TO_SECTOR.get(sym, ""), {}).get("name", ""),
+            })
+
+    # 1) Live, whole-market search via Finnhub
+    try:
+        from engine.trading import finnhub_client as finnhub
+        if finnhub.is_configured():
+            for m in (finnhub.search_symbol(q) or []):
+                # Skip non-common-stock contract symbols (options, etc.)
+                if m.get("type") and m["type"] not in ("Common Stock", "ETP", "ETF", ""):
+                    continue
+                sym = m.get("symbol", "")
+                if "." in sym or ":" in sym:
+                    continue
+                add(sym, m.get("description"))
+                if len(results) >= limit:
+                    return results
+    except Exception:
+        pass
+
+    # 2) Curated watchlist + popular fallbacks
+    for sym in get_all_tickers():
+        if q in sym:
+            add(sym, _POPULAR.get(sym, ""))
+    for sym, name in _POPULAR.items():
+        if q in sym or q in name.upper():
+            add(sym, name)
+
+    return results[:limit]
