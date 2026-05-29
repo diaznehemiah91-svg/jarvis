@@ -15,6 +15,7 @@ const State = {
   flowFilter: 'all',
   layerFilter: 'all',
   newsTab: 'power',
+  optDir: 'all',
 };
 
 let globeInitialized = false;
@@ -60,7 +61,7 @@ async function loadAll() {
     call('getSectorMap'),
     call('computeRegime'),
     call('getOpportunities', 16),
-    call('getOptionsIdeas', 12),
+    call('getOptionsIdeas', 24),
     call('getSectorHeatmap'),
     call('getFullBriefing'),
     call('getDataStatus'),
@@ -78,6 +79,7 @@ async function loadAll() {
   renderRegime();
   renderStats();
   renderOverviewOpps();
+  renderOverviewOpts();
   renderFeed();
   renderMiniHeat();
   if (globeInitialized) renderGlobe(State.layerFilter);
@@ -221,6 +223,31 @@ function renderOverviewOpps() {
       <div class="conv-bar"><i style="width:${o.conviction}%;background:${actionColor(o.action)}"></i></div>
       <div class="opp-conv-lbl">${o.conviction}% conviction</div>
     </div>`).join('') || '<div style="color:var(--text-faint)">No signals.</div>';
+}
+
+// ════ OVERVIEW OPTIONS STRIP (balanced bull + bear) ═════════════════════════
+function renderOverviewOpts() {
+  const el = document.getElementById('ovOptStrip');
+  if (!el) return;
+  const all = State.options?.ideas || [];
+  // Show a balanced mix: top 4 bullish + top 4 bearish.
+  const bull = all.filter(i => i.direction === 'bullish').slice(0, 4);
+  const bear = all.filter(i => i.direction === 'bearish').slice(0, 4);
+  const mix = [];
+  for (let k = 0; k < 4; k++) { if (bull[k]) mix.push(bull[k]); if (bear[k]) mix.push(bear[k]); }
+  el.innerHTML = mix.map(i => {
+    const isBull = i.direction === 'bullish';
+    const col = isBull ? 'var(--green)' : 'var(--red)';
+    return `<div class="opt-mini" onclick="openDrawer('${i.ticker}')">
+      <div class="opt-mini-top">
+        <span class="opp-sym">${i.ticker}</span>
+        <span class="opt-mini-dir" style="color:${col}">${isBull ? '▲' : '▼'}</span>
+      </div>
+      <div class="opt-mini-strat" style="color:${col}">${i.strategy}</div>
+      <div class="opt-mini-contract">${i.contract}</div>
+      <div class="opt-mini-be">BE $${i.breakeven != null ? i.breakeven : '—'} · ${i.conviction}%</div>
+    </div>`;
+  }).join('') || '<div style="color:var(--text-faint)">No options ideas yet.</div>';
 }
 
 // ════ FEED ══════════════════════════════════════════════════════════════════
@@ -392,22 +419,43 @@ function convCircle(pct, color) {
 
 // ════ OPTIONS VIEW ══════════════════════════════════════════════════════════
 function renderOptions() {
-  const ideas = State.options?.ideas || [];
+  const all = State.options?.ideas || [];
+  const dir = State.optDir || 'all';
+  const ideas = dir === 'all' ? all : all.filter(i => i.direction === dir);
   document.getElementById('optExpiry').textContent = `Expiry ${State.options?.expiry || '—'}`;
-  document.getElementById('optGrid').innerHTML = ideas.map(i => `
-    <div class="opt-card glass ${i.type.toLowerCase()}" onclick="openDrawer('${i.ticker}')">
+
+  // Strategy / direction summary strip
+  const sum = State.options?.summary;
+  const summaryEl = document.getElementById('optSummary');
+  if (summaryEl && sum) {
+    const byStrat = sum.by_strategy || {};
+    summaryEl.innerHTML = `
+      <span class="opt-sum-pill bull">▲ ${sum.bullish || 0} bullish</span>
+      <span class="opt-sum-pill bear">▼ ${sum.bearish || 0} bearish</span>
+      ${Object.entries(byStrat).map(([k, v]) => `<span class="opt-sum-pill">${k} · ${v}</span>`).join('')}`;
+  }
+
+  document.getElementById('optGrid').innerHTML = ideas.map(i => {
+    const bull = i.direction === 'bullish';
+    const col = bull ? 'var(--green)' : 'var(--red)';
+    const spread = i.short_strike != null;
+    return `
+    <div class="opt-card glass ${bull ? 'call' : 'put'}" onclick="openDrawer('${i.ticker}')">
       <div class="opt-card-head">
         <span class="opt-sym">${i.ticker}</span>
-        <span class="opt-type ${i.type.toLowerCase()}">${i.type}</span>
+        <span class="opt-dir-badge" style="color:${col};border-color:${col}55">${bull ? '▲ BULL' : '▼ BEAR'}</span>
       </div>
+      <div class="opt-strategy" style="color:${col}">${i.strategy}</div>
       <div class="opt-contract">${i.contract}</div>
       <div class="opt-meta">
         <div><span class="opt-meta-lbl">UNDERLYING</span><span class="opt-meta-val">${usd(i.underlying_price)}</span></div>
-        <div><span class="opt-meta-lbl">STRIKE</span><span class="opt-meta-val">$${i.strike}</span></div>
-        <div><span class="opt-meta-lbl">CONVICTION</span><span class="opt-meta-val" style="color:${i.type==='CALL'?'var(--green)':'var(--red)'}">${i.conviction}%</span></div>
+        <div><span class="opt-meta-lbl">${spread ? 'STRIKES' : 'STRIKE'}</span><span class="opt-meta-val">$${i.strike}${spread ? '/$' + i.short_strike : ''}</span></div>
+        <div><span class="opt-meta-lbl">BREAKEVEN</span><span class="opt-meta-val" style="color:var(--cyan)">${i.breakeven != null ? '$' + i.breakeven : '—'}</span></div>
+        <div><span class="opt-meta-lbl">CONVICTION</span><span class="opt-meta-val" style="color:${col}">${i.conviction}%</span></div>
       </div>
       <div class="opt-rationale">${i.rationale}</div>
-    </div>`).join('') || '<div style="color:var(--text-faint)">No options ideas.</div>';
+    </div>`;
+  }).join('') || '<div style="color:var(--text-faint);padding:20px">No options ideas in this direction.</div>';
 }
 
 // ════ FLOW VIEW ═════════════════════════════════════════════════════════════
@@ -421,16 +469,45 @@ function renderFlow() {
   });
   document.getElementById('flowList').innerHTML = alerts.map(a => {
     const d = a.data || {};
+    const det = d.details || {};
     const dir = d.direction || 'bullish';
+    const col = dir === 'bullish' ? 'var(--green)' : 'var(--red)';
+    const typeLabel = a.type.replace(/_/g, ' ');
+
+    // Build a detail chip row from whatever metadata the alert carries.
+    const chips = [];
+    if (det.volume_ratio != null) chips.push(`<span class="flow-chip">VOL ${det.volume_ratio}×</span>`);
+    if (det.intraday_range_pct != null) chips.push(`<span class="flow-chip">RANGE ${det.intraday_range_pct}%</span>`);
+    if (det.price_change_pct != null) chips.push(`<span class="flow-chip">Δ ${det.price_change_pct}%</span>`);
+    if (det.strike != null) chips.push(`<span class="flow-chip">STRIKE $${det.strike}</span>`);
+    if (det.expiry) chips.push(`<span class="flow-chip">EXP ${det.expiry}</span>`);
+    if (det.option_type) chips.push(`<span class="flow-chip">${String(det.option_type).toUpperCase()}</span>`);
+    if (det.open_interest != null) chips.push(`<span class="flow-chip">OI ${Number(det.open_interest).toLocaleString()}</span>`);
+    if (det.net_shares != null) chips.push(`<span class="flow-chip">NET ${Number(det.net_shares).toLocaleString()} sh</span>`);
+    if (det.transactions != null) chips.push(`<span class="flow-chip">${det.transactions} txns</span>`);
+    if (det.trade_date) chips.push(`<span class="flow-chip">${det.trade_date}</span>`);
+
+    // Supply-chain ripple (whale blocks carry it)
+    const ripple = (d.ripple?.ripple_effects || []).slice(0, 3)
+      .map(r => `<span class="flow-ripple-tag">${r.sector_name}</span>`).join('');
+
     return `<div class="flow-card ${dir}" ${d.ticker ? `onclick="openDrawer('${d.ticker}')"` : ''}>
-      <div class="flow-sym" style="color:${dir==='bullish'?'var(--green)':'var(--red)'}">${d.ticker || '—'}</div>
-      <div>
-        <div class="flow-info-type">${a.title}</div>
-        <div class="flow-info-body">${a.body}</div>
-      </div>
-      <div>
-        <div class="flow-notional">${usd(d.size_usd)}</div>
-        <div class="flow-notional-lbl">NOTIONAL</div>
+      <div class="flow-card-main">
+        <div class="flow-sym" style="color:${col}">
+          ${d.ticker || '—'}
+          <span class="flow-dir-arrow">${dir === 'bullish' ? '▲' : '▼'}</span>
+        </div>
+        <div class="flow-info">
+          <div class="flow-info-type">${a.title}</div>
+          <div class="flow-info-body">${a.body}</div>
+          ${chips.length ? `<div class="flow-chips">${chips.join('')}</div>` : ''}
+          ${ripple ? `<div class="flow-ripple"><span class="flow-ripple-lbl">RIPPLE →</span>${ripple}</div>` : ''}
+        </div>
+        <div class="flow-right">
+          <div class="flow-prio prio-${a.priority}">${a.priority}</div>
+          <div class="flow-notional">${usd(d.size_usd)}</div>
+          <div class="flow-notional-lbl">${typeLabel}</div>
+        </div>
       </div>
     </div>`;
   }).join('') || '<div style="color:var(--text-faint);padding:20px">No institutional flow detected. Run a sync to scan.</div>';
@@ -495,6 +572,12 @@ function initNav() {
     e.target.classList.add('active');
     State.newsTab = e.target.dataset.news;
     renderNews();
+  }));
+  document.querySelectorAll('[data-optdir]').forEach(c => c.addEventListener('click', (e) => {
+    document.querySelectorAll('[data-optdir]').forEach(x => x.classList.remove('active'));
+    e.target.classList.add('active');
+    State.optDir = e.target.dataset.optdir;
+    renderOptions();
   }));
 }
 

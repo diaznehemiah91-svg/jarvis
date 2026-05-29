@@ -209,7 +209,7 @@ def getOpportunities(limit=12):
     return json.dumps(get_top_opportunities(limit))
 
 @api('getOptionsIdeas')
-def getOptionsIdeas(limit=10):
+def getOptionsIdeas(limit=24):
     return json.dumps(get_options_ideas(limit))
 
 @api('getSectorHeatmap')

@@ -136,6 +136,15 @@
         <div class="opp-strip" id="ovOppStrip"></div>
       </div>
 
+      <!-- Options preview (balanced bull + bear) -->
+      <div class="card glass span-2" id="ovOpts">
+        <div class="card-head">
+          <span class="card-title">OPTIONS IDEAS · BULL &amp; BEAR</span>
+          <button class="ghost-btn" data-goto="options">View all →</button>
+        </div>
+        <div class="opt-strip" id="ovOptStrip"></div>
+      </div>
+
       <!-- Alert feed -->
       <div class="card glass span-2 tall" id="ovAlerts">
         <div class="card-head">
@@ -213,8 +222,16 @@
   <section class="view" id="view-options">
     <div class="view-head">
       <h2>OPTIONS IDEAS</h2>
-      <div class="opt-expiry" id="optExpiry">Expiry —</div>
+      <div class="opt-controls">
+        <div class="opt-tabs">
+          <button class="chip active" data-optdir="all">All</button>
+          <button class="chip" data-optdir="bullish">▲ Bullish</button>
+          <button class="chip" data-optdir="bearish">▼ Bearish</button>
+        </div>
+        <div class="opt-expiry" id="optExpiry">Expiry —</div>
+      </div>
     </div>
+    <div class="opt-summary" id="optSummary"></div>
     <div class="opt-grid" id="optGrid"></div>
   </section>
 

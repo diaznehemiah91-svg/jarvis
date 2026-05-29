@@ -149,7 +149,7 @@ def getOpportunities(limit: int = 12):
 
 
 @eel.expose
-def getOptionsIdeas(limit: int = 10):
+def getOptionsIdeas(limit: int = 24):
     return json.dumps(get_options_ideas(limit))
 
 
