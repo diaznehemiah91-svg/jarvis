@@ -96,5 +96,14 @@ def init_trading_db(db_path: str = "jarvis.db") -> None:
         )
     """)
 
+    # Generic API response cache (Finnhub etc.) with TTL via fetched_at
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS api_cache (
+            cache_key  TEXT PRIMARY KEY,
+            payload    TEXT NOT NULL,
+            fetched_at TEXT DEFAULT (datetime('now'))
+        )
+    """)
+
     con.commit()
     con.close()

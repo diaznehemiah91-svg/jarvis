@@ -3,3 +3,9 @@ contacts.csv
 jarvis.db
 /engine/__pycache__
 /engine/cookies.json
+# Python bytecode
+__pycache__/
+*.pyc
+
+# JARVIS Chrome profile
+.jarvis-chrome/

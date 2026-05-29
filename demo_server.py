@@ -15,12 +15,20 @@ from engine.trading.sentiment import score_reddit, score_news
 from engine.trading.tickers import SECTOR_MAP, get_all_tickers
 from engine.trading.regime import compute_regime_score, detect_rotation
 from engine.trading.alerts import generate_full_briefing, get_dca_candidates
-from engine.trading.flow_tracker import get_recent_alerts, map_flow_ripple
+from engine.trading.flow_tracker import get_recent_alerts, map_flow_ripple, run_full_scan
 from engine.trading.sentiment import get_sector_sentiment
+from engine.trading.opportunities import (
+    get_top_opportunities, get_options_ideas, get_sector_heatmap, score_ticker,
+)
 
 init_trading_db()
 score_reddit()
 score_news()
+# Seed an initial institutional-flow scan so the feed is populated on first load
+try:
+    run_full_scan()
+except Exception as _e:
+    print('initial flow scan skipped:', _e)
 
 app = Flask(__name__, static_folder='/home/user/jarvis/www')
 
@@ -37,6 +45,15 @@ def trading():
 @app.route('/trading/<path:path>')
 def trading_static(path):
     return send_from_directory('/home/user/jarvis/www/trading', path)
+
+@app.route('/command/')
+@app.route('/command/index.html')
+def command():
+    return send_from_directory('/home/user/jarvis/www/command', 'index.html')
+
+@app.route('/command/<path:path>')
+def command_static(path):
+    return send_from_directory('/home/user/jarvis/www/command', path)
 
 @app.route('/<path:path>')
 def static_files(path):
@@ -183,6 +200,31 @@ def runNewsSentiment(key=''):
 def getTickerSentiment(ticker='NVDA'):
     from engine.trading.sentiment import get_aggregate_sentiment
     return json.dumps(get_aggregate_sentiment(ticker))
+
+@api('getOpportunities')
+def getOpportunities(limit=12):
+    return json.dumps(get_top_opportunities(limit))
+
+@api('getOptionsIdeas')
+def getOptionsIdeas(limit=10):
+    return json.dumps(get_options_ideas(limit))
+
+@api('getSectorHeatmap')
+def getSectorHeatmap():
+    return json.dumps(get_sector_heatmap())
+
+@api('getTickerAssessment')
+def getTickerAssessment(ticker='NVDA'):
+    return json.dumps(score_ticker(ticker))
+
+@api('runFlowScan')
+def runFlowScan(tradier_token='', unusual_whales_key=''):
+    return json.dumps(run_full_scan(tradier_token, unusual_whales_key))
+
+@api('getDataStatus')
+def getDataStatus():
+    from engine.trading import finnhub_client as finnhub
+    return json.dumps(finnhub.status())
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=8765, debug=False)

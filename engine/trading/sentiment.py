@@ -217,12 +217,19 @@ NEWS_SOURCES = [
 def score_news(alpha_vantage_key: str = "") -> dict:
     """
     Fetch news headlines for each ticker, score via VADER.
-    Falls back to mock headlines if no API key is configured.
+
+    Source priority:
+      1. Finnhub /company-news (free tier) — real headlines
+      2. Alpha Vantage news (if key provided)
+      3. Mock headlines (offline fallback)
     """
     watchlist = get_all_tickers()
     results = {}
 
-    if alpha_vantage_key and REQUESTS_AVAILABLE:
+    from engine.trading import finnhub_client as finnhub
+    if finnhub.is_configured():
+        results = _score_finnhub_news(watchlist, finnhub)
+    elif alpha_vantage_key and REQUESTS_AVAILABLE:
         results = _score_alpha_vantage_news(watchlist, alpha_vantage_key)
     else:
         results = _mock_news_scores(watchlist)
@@ -234,6 +241,24 @@ def score_news(alpha_vantage_key: str = "") -> dict:
             data["score"], data.get("article_count", 0), 0.0,
         )
 
+    return results
+
+
+def _score_finnhub_news(watchlist: list[str], finnhub) -> dict:
+    """Score real company-news headlines from Finnhub via VADER."""
+    results = {}
+    for ticker in watchlist:
+        articles = finnhub.get_company_news(ticker, days=7)
+        if not articles:
+            # Keep a neutral entry so the ticker still appears
+            results[ticker] = {"score": 0.0, "article_count": 0}
+            continue
+        headlines = [
+            (a.get("headline", "") + " " + a.get("summary", ""))
+            for a in articles[:25]
+        ]
+        score = _score_texts(headlines)
+        results[ticker] = {"score": round(score, 4), "article_count": len(headlines)}
     return results
 
 

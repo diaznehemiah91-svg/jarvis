@@ -24,6 +24,9 @@ from engine.trading.flow_tracker import (
     run_full_scan, get_recent_alerts, map_flow_ripple,
 )
 from engine.trading.alerts import generate_full_briefing, get_dca_candidates
+from engine.trading.opportunities import (
+    get_top_opportunities, get_options_ideas, get_sector_heatmap, score_ticker,
+)
 
 # Initialize DB on import
 init_trading_db()
@@ -136,6 +139,36 @@ def getFullBriefing():
 def getDcaCandidates():
     regime = get_current_regime() or {}
     return json.dumps(get_dca_candidates(regime))
+
+
+# ── Opportunities & Options ───────────────────────────────────────────────────
+
+@eel.expose
+def getOpportunities(limit: int = 12):
+    return json.dumps(get_top_opportunities(limit))
+
+
+@eel.expose
+def getOptionsIdeas(limit: int = 10):
+    return json.dumps(get_options_ideas(limit))
+
+
+@eel.expose
+def getSectorHeatmap():
+    return json.dumps(get_sector_heatmap())
+
+
+@eel.expose
+def getTickerAssessment(ticker: str):
+    return json.dumps(score_ticker(ticker))
+
+
+# ── Data source status ────────────────────────────────────────────────────────
+
+@eel.expose
+def getDataStatus():
+    from engine.trading import finnhub_client as finnhub
+    return json.dumps(finnhub.status())
 
 
 # ── Background refresh ────────────────────────────────────────────────────────

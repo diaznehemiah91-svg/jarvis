@@ -84,6 +84,20 @@ def generate_full_briefing() -> dict:
             "timestamp": sa["alerted_at"],
         })
 
+    # 4b. Insider flow alerts (real smart money via Finnhub)
+    insider_alerts = get_recent_alerts(hours=72, alert_type="insider_flow")
+    for ia in insider_alerts[:5]:
+        d = ia.get("details", {})
+        alerts.append({
+            "type": "INSIDER_FLOW",
+            "priority": _priority_label(0.4, ia.get("size_usd", 0)),
+            "title": f"INSIDER [{ia['direction'].upper()}]: {ia['ticker']} — {ia.get('size_usd', 0):,.0f} USD",
+            "body": (f"{d.get('transactions', 0)} insider transactions, "
+                     f"net {d.get('net_shares', 0):,} shares. Real filings via Finnhub."),
+            "data": ia,
+            "timestamp": ia["alerted_at"],
+        })
+
     # 5. Sector rotation signal
     from engine.trading.regime import detect_rotation
     rotation = detect_rotation()

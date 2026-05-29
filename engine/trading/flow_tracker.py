@@ -76,10 +76,13 @@ def detect_whale_blocks(tickers: Optional[list[str]] = None) -> list[dict]:
     alerts = []
 
     for ticker in tickers:
-        rows = fetch_ticker_data(ticker, days=5)
+        rows = fetch_ticker_data(ticker, days=7)
         if not rows or len(rows) < 2:
             continue
-        latest = rows[-1]
+        # Scan the recent window for the highest-volume session — institutional
+        # accumulation often spans several days, so we surface the standout day.
+        recent = rows[-5:]
+        latest = max(recent, key=lambda r: (r.get("volume_ratio") or 0))
 
         vol_ratio = latest.get("volume_ratio", 1.0) or 1.0
         close = latest.get("close") or 0
@@ -235,10 +238,11 @@ def _sweeps_volume_proxy(tickers: list[str]) -> list[dict]:
     """
     alerts = []
     for ticker in tickers:
-        rows = fetch_ticker_data(ticker, days=5)
+        rows = fetch_ticker_data(ticker, days=7)
         if not rows:
             continue
-        latest = rows[-1]
+        # Surface the standout-volume session in the recent window
+        latest = max(rows[-5:], key=lambda r: (r.get("volume_ratio") or 0))
         vol_ratio = latest.get("volume_ratio", 1.0) or 1.0
         close = latest.get("close") or 0
         volume = latest.get("volume", 0) or 0
@@ -319,20 +323,60 @@ def get_recent_alerts(hours: int = 24, alert_type: Optional[str] = None) -> list
     ]
 
 
+def detect_insider_flow(tickers: Optional[list[str]] = None) -> list[dict]:
+    """
+    Real insider buys/sells from Finnhub (free tier) — genuine smart-money
+    signal. Net positive insider buying prints a bullish institutional alert.
+    No-op when Finnhub isn't configured.
+    """
+    from engine.trading import finnhub_client as finnhub
+    if not finnhub.is_configured():
+        return []
+
+    tickers = tickers or get_all_tickers()
+    alerts = []
+    for ticker in tickers:
+        flow = finnhub.insider_flow(ticker)
+        if not flow:
+            continue
+        notional = max(flow["buy_value"], flow["sell_value"])
+        if notional < MIN_NOTIONAL_USD / 4:  # insider sizes run smaller
+            continue
+        details = {
+            "net_shares": flow["net_shares"],
+            "buy_value": round(flow["buy_value"], 0),
+            "sell_value": round(flow["sell_value"], 0),
+            "transactions": flow["txns"],
+            "note": "Real insider transactions (Finnhub)",
+        }
+        aid = _save_alert(ticker, "insider_flow", flow["direction"], notional, details)
+        alerts.append({
+            "id": aid, "ticker": ticker,
+            "alert_type": "Insider Flow",
+            "direction": flow["direction"],
+            "notional_usd": f"${notional:,.0f}",
+            "sector": get_sector_for_ticker(ticker),
+            **details,
+        })
+    return alerts
+
+
 def run_full_scan(
     tradier_token: str = "",
     unusual_whales_key: str = "",
 ) -> dict:
-    """Run whale block + options sweep scan across all tickers."""
+    """Run whale block + options sweep + insider scan across all tickers."""
     whale_alerts = detect_whale_blocks()
     sweep_alerts = detect_options_sweeps(
         tradier_token=tradier_token,
         unusual_whales_key=unusual_whales_key,
     )
+    insider_alerts = detect_insider_flow()
     return {
         "whale_blocks": whale_alerts,
         "options_sweeps": sweep_alerts,
-        "total_alerts": len(whale_alerts) + len(sweep_alerts),
+        "insider_flow": insider_alerts,
+        "total_alerts": len(whale_alerts) + len(sweep_alerts) + len(insider_alerts),
         "scanned_at": datetime.now().isoformat(),
     }
 

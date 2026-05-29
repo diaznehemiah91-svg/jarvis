@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>J.A.R.V.I.S — Command Center</title>
+  <link rel="shortcut icon" href="/assets/img/logo.ico" type="image/x-icon" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <script type="text/javascript" src="/eel.js"></script>
+</head>
+<body>
+
+<!-- Animated background layers -->
+<div class="bg-mesh"></div>
+<div class="bg-grid"></div>
+<canvas id="particles"></canvas>
+
+<!-- ═══ TOP BAR ═══════════════════════════════════════════════════════ -->
+<header class="topbar glass">
+  <div class="topbar-left">
+    <div class="logo">
+      <div class="logo-orb" id="logoOrb"></div>
+      <div class="logo-text">
+        <span class="logo-name">J.A.R.V.I.S</span>
+        <span class="logo-sub">COMMAND CENTER</span>
+      </div>
+    </div>
+    <div class="market-status" id="marketStatus">
+      <span class="dot"></span><span id="marketStatusText">MARKET</span>
+    </div>
+    <div class="data-badge sim" id="dataBadge" title="Data source">
+      <span class="data-dot"></span><span id="dataBadgeText">SIM</span>
+    </div>
+  </div>
+
+  <div class="topbar-center">
+    <button class="search-trigger" id="searchTrigger">
+      <span class="search-icon">⌕</span>
+      <span class="search-label">Search ticker, command…</span>
+      <kbd>Ctrl K</kbd>
+    </button>
+  </div>
+
+  <div class="topbar-right">
+    <div class="clock" id="clock">--:--:--</div>
+    <button class="icon-btn" id="briefBtn" title="Voice briefing (B)">
+      <span class="i">▶</span><span class="lbl">BRIEF</span>
+    </button>
+    <button class="icon-btn voice-btn" id="voiceBtn" title="Voice command (V)">
+      <span class="voice-orb"></span><span class="lbl">JARVIS</span>
+    </button>
+    <a class="icon-btn" href="/index.html" title="Classic UI">⌂</a>
+  </div>
+</header>
+
+<!-- ═══ TICKER TAPE ═══════════════════════════════════════════════════ -->
+<div class="ticker-tape glass" id="tickerTape">
+  <div class="ticker-track" id="tickerTrack"></div>
+</div>
+
+<!-- ═══ NAV RAIL ══════════════════════════════════════════════════════ -->
+<nav class="rail glass">
+  <button class="rail-btn active" data-view="overview" title="Overview">
+    <span class="rail-ico">◳</span><span class="rail-lbl">Overview</span>
+  </button>
+  <button class="rail-btn" data-view="heatmap" title="Sector Heat Maps">
+    <span class="rail-ico">▦</span><span class="rail-lbl">Heat Maps</span>
+  </button>
+  <button class="rail-btn" data-view="opportunities" title="Opportunities">
+    <span class="rail-ico">◈</span><span class="rail-lbl">Ideas</span>
+  </button>
+  <button class="rail-btn" data-view="options" title="Options Flow">
+    <span class="rail-ico">⟐</span><span class="rail-lbl">Options</span>
+  </button>
+  <button class="rail-btn" data-view="flow" title="Institutional Flow">
+    <span class="rail-ico">≋</span><span class="rail-lbl">Flow</span>
+  </button>
+  <div class="rail-spacer"></div>
+  <button class="rail-btn" id="refreshBtn" title="Refresh all data (R)">
+    <span class="rail-ico">⟳</span><span class="rail-lbl">Sync</span>
+  </button>
+</nav>
+
+<!-- ═══ MAIN STAGE ════════════════════════════════════════════════════ -->
+<main class="stage" id="stage">
+
+  <!-- ── OVERVIEW ──────────────────────────────────────────────────── -->
+  <section class="view active" id="view-overview">
+    <div class="view-grid overview-grid">
+
+      <!-- Regime hero -->
+      <div class="card glass regime-hero" id="regimeHero">
+        <div class="card-eyebrow">MARKET REGIME</div>
+        <div class="regime-hero-main">
+          <div class="regime-gauge" id="regimeGauge"></div>
+          <div class="regime-hero-text">
+            <div class="regime-name" id="regimeName">ANALYZING…</div>
+            <div class="regime-score" id="regimeScore">—</div>
+            <div class="regime-vix" id="regimeVix">VIX —</div>
+          </div>
+        </div>
+        <div class="regime-components" id="regimeComponents"></div>
+        <div class="regime-actions" id="regimeActionList"></div>
+      </div>
+
+      <!-- Quick stats -->
+      <div class="card glass stat-card" id="statBuys">
+        <div class="stat-ico bullish">▲</div>
+        <div class="stat-num" id="statBuysNum">—</div>
+        <div class="stat-lbl">BUY SIGNALS</div>
+      </div>
+      <div class="card glass stat-card" id="statSells">
+        <div class="stat-ico bearish">▼</div>
+        <div class="stat-num" id="statSellsNum">—</div>
+        <div class="stat-lbl">SELL SIGNALS</div>
+      </div>
+      <div class="card glass stat-card" id="statFlow">
+        <div class="stat-ico neutral">≋</div>
+        <div class="stat-num" id="statFlowNum">—</div>
+        <div class="stat-lbl">FLOW ALERTS</div>
+      </div>
+
+      <!-- Top opportunities preview -->
+      <div class="card glass span-2" id="ovOpps">
+        <div class="card-head">
+          <span class="card-title">TOP CONVICTION PLAYS</span>
+          <button class="ghost-btn" data-goto="opportunities">View all →</button>
+        </div>
+        <div class="opp-strip" id="ovOppStrip"></div>
+      </div>
+
+      <!-- Alert feed -->
+      <div class="card glass span-2 tall" id="ovAlerts">
+        <div class="card-head">
+          <span class="card-title">LIVE INTELLIGENCE FEED</span>
+          <span class="pulse-dot"></span>
+        </div>
+        <div class="feed" id="ovFeed"></div>
+      </div>
+
+      <!-- Mini heatmap -->
+      <div class="card glass span-2" id="ovHeat">
+        <div class="card-head">
+          <span class="card-title">SECTOR PULSE</span>
+          <button class="ghost-btn" data-goto="heatmap">Expand →</button>
+        </div>
+        <div class="mini-heat" id="ovMiniHeat"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── HEAT MAPS ─────────────────────────────────────────────────── -->
+  <section class="view" id="view-heatmap">
+    <div class="view-head">
+      <h2>SECTOR HEAT MAPS</h2>
+      <div class="layer-filter" id="layerFilter">
+        <button class="chip active" data-layer="all">All Layers</button>
+        <button class="chip" data-layer="AI Hardware">AI Hardware</button>
+        <button class="chip" data-layer="Infrastructure">Infrastructure</button>
+        <button class="chip" data-layer="Frontier">Frontier</button>
+      </div>
+    </div>
+    <div class="heat-wrap" id="heatWrap"></div>
+  </section>
+
+  <!-- ── OPPORTUNITIES ─────────────────────────────────────────────── -->
+  <section class="view" id="view-opportunities">
+    <div class="view-head">
+      <h2>BUY / SELL OPPORTUNITIES</h2>
+      <div class="opp-tabs">
+        <button class="chip active" data-opp="buys">▲ Longs</button>
+        <button class="chip" data-opp="sells">▼ Shorts</button>
+      </div>
+    </div>
+    <div class="opp-table-wrap">
+      <div class="opp-table" id="oppTable"></div>
+    </div>
+  </section>
+
+  <!-- ── OPTIONS ───────────────────────────────────────────────────── -->
+  <section class="view" id="view-options">
+    <div class="view-head">
+      <h2>OPTIONS IDEAS</h2>
+      <div class="opt-expiry" id="optExpiry">Expiry —</div>
+    </div>
+    <div class="opt-grid" id="optGrid"></div>
+  </section>
+
+  <!-- ── FLOW ──────────────────────────────────────────────────────── -->
+  <section class="view" id="view-flow">
+    <div class="view-head">
+      <h2>INSTITUTIONAL FLOW</h2>
+      <div class="flow-tabs">
+        <button class="chip active" data-flow="all">All</button>
+        <button class="chip" data-flow="whale_block">Whale Blocks</button>
+        <button class="chip" data-flow="options_sweep">Sweeps</button>
+        <button class="chip" data-flow="insider_flow">Insider</button>
+      </div>
+    </div>
+    <div class="flow-list" id="flowList"></div>
+  </section>
+
+</main>
+
+<!-- ═══ COMMAND PALETTE ═══════════════════════════════════════════════ -->
+<div class="palette-overlay" id="paletteOverlay">
+  <div class="palette glass">
+    <input type="text" id="paletteInput" placeholder="Search ticker, sector, or command…" autocomplete="off" />
+    <div class="palette-results" id="paletteResults"></div>
+    <div class="palette-foot">
+      <span><kbd>↑↓</kbd> navigate</span>
+      <span><kbd>↵</kbd> select</span>
+      <span><kbd>esc</kbd> close</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DETAIL DRAWER ═════════════════════════════════════════════════ -->
+<div class="drawer-overlay" id="drawerOverlay">
+  <aside class="drawer glass" id="drawer">
+    <button class="drawer-close" id="drawerClose">✕</button>
+    <div id="drawerBody"></div>
+  </aside>
+</div>
+
+<!-- ═══ VOICE HUD ═════════════════════════════════════════════════════ -->
+<div class="voice-hud" id="voiceHud">
+  <div class="voice-visual"><span></span><span></span><span></span><span></span><span></span></div>
+  <div class="voice-transcript" id="voiceTranscript">Listening…</div>
+</div>
+
+<!-- ═══ TOAST ═════════════════════════════════════════════════════════ -->
+<div class="toast-stack" id="toastStack"></div>
+
+<script src="voice.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
