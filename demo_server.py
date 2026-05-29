@@ -7,7 +7,10 @@ import json, os, sys, threading
 from datetime import datetime
 from flask import Flask, send_from_directory, jsonify
 
-sys.path.insert(0, '/home/user/jarvis')
+# Resolve paths relative to this file so it runs on any machine / OS.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+WWW_DIR = os.path.join(BASE_DIR, 'www')
+sys.path.insert(0, BASE_DIR)
 
 # Bootstrap DB and run one pass of mock sentiment so we have data
 from engine.trading.db_schema import init_trading_db
@@ -30,34 +33,34 @@ try:
 except Exception as _e:
     print('initial flow scan skipped:', _e)
 
-app = Flask(__name__, static_folder='/home/user/jarvis/www')
+app = Flask(__name__, static_folder=WWW_DIR)
 
 # ── Serve static files ────────────────────────────────────────────────────────
 @app.route('/')
 def index():
-    return send_from_directory('/home/user/jarvis/www', 'index.html')
+    return send_from_directory(WWW_DIR, 'index.html')
 
 @app.route('/trading/')
 @app.route('/trading/index.html')
 def trading():
-    return send_from_directory('/home/user/jarvis/www/trading', 'index.html')
+    return send_from_directory(os.path.join(WWW_DIR, 'trading'), 'index.html')
 
 @app.route('/trading/<path:path>')
 def trading_static(path):
-    return send_from_directory('/home/user/jarvis/www/trading', path)
+    return send_from_directory(os.path.join(WWW_DIR, 'trading'), path)
 
 @app.route('/command/')
 @app.route('/command/index.html')
 def command():
-    return send_from_directory('/home/user/jarvis/www/command', 'index.html')
+    return send_from_directory(os.path.join(WWW_DIR, 'command'), 'index.html')
 
 @app.route('/command/<path:path>')
 def command_static(path):
-    return send_from_directory('/home/user/jarvis/www/command', path)
+    return send_from_directory(os.path.join(WWW_DIR, 'command'), path)
 
 @app.route('/<path:path>')
 def static_files(path):
-    return send_from_directory('/home/user/jarvis/www', path)
+    return send_from_directory(WWW_DIR, path)
 
 # ── Mock eel.js ───────────────────────────────────────────────────────────────
 @app.route('/eel.js')
