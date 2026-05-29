@@ -51,13 +51,19 @@ def allCommands(message=1):
         eel.senderText(query)
     try:
 
-        if "open" in query:
+        if "weather" in query or "temperature" in query or "forecast" in query:
+            from engine.features import getWeather
+            getWeather(query)
+        elif "on spotify" in query or "spotify" in query:
+            from engine.features import PlaySpotify
+            PlaySpotify(query)
+        elif "open" in query:
             from engine.features import openCommand
             openCommand(query)
         elif "on youtube" in query:
             from engine.features import PlayYoutube
             PlayYoutube(query)
-        
+
         elif "market regime" in query or "flow tracker" in query or "institutional flow" in query:
             from engine.trading.regime import compute_regime_score
             from engine.trading.alerts import generate_full_briefing

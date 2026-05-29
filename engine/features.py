@@ -1,6 +1,9 @@
 import json
 import os
-from pipes import quote
+try:
+    from shlex import quote  # Python 3.3+ (pipes.quote removed in 3.13)
+except ImportError:  # pragma: no cover
+    from pipes import quote
 import re
 import sqlite3
 import struct
@@ -71,6 +74,54 @@ def PlayYoutube(query):
     search_term = extract_yt_term(query)
     speak("Playing "+search_term+" on YouTube")
     kit.playonyt(search_term)
+
+
+def PlaySpotify(query):
+    """Play a song/artist on Spotify. Opens the Spotify desktop app via the
+    spotify: URI when available, otherwise falls back to the Spotify web
+    player search results."""
+    term = query.lower()
+    for w in [ASSISTANT_NAME.lower(), "play", "on spotify", "spotify", "song", "music"]:
+        term = term.replace(w, "")
+    term = term.strip()
+    if not term:
+        speak("What would you like me to play on Spotify?")
+        return
+    speak("Playing " + term + " on Spotify")
+    web_url = "https://open.spotify.com/search/" + quote(term)
+    try:
+        # Try the native desktop client first (Windows/macOS registered URI)
+        os.startfile("spotify:search:" + term)
+    except Exception:
+        webbrowser.open(web_url)
+
+
+def getWeather(query):
+    """Speak the current weather for a city. Uses the keyless wttr.in service
+    so no API key is required. Falls back to the user's saved city."""
+    import requests
+    term = query.lower()
+    for w in [ASSISTANT_NAME.lower(), "weather", "temperature", "forecast",
+              "what's the", "whats the", "what is the", "in", "for", "today"]:
+        term = term.replace(w, "")
+    city = term.strip()
+    if not city:
+        try:
+            cursor.execute("SELECT city FROM info LIMIT 1")
+            row = cursor.fetchone()
+            city = row[0] if row and row[0] else ""
+        except Exception:
+            city = ""
+    try:
+        url = "https://wttr.in/" + quote(city) + "?format=%C,+%t,+feels+like+%f,+humidity+%h,+wind+%w"
+        resp = requests.get(url, timeout=8, headers={"User-Agent": "curl/8"})
+        if resp.status_code == 200 and resp.text and "Unknown" not in resp.text:
+            place = city if city else "your area"
+            speak("The weather in " + place + ": " + resp.text.strip())
+        else:
+            speak("Sorry, I couldn't fetch the weather right now.")
+    except Exception:
+        speak("Sorry, I couldn't reach the weather service.")
 
 
 def hotword():
