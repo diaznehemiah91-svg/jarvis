@@ -231,9 +231,12 @@ def getDataStatus():
 
 @api('setApiKey')
 def setApiKey(provider='finnhub', key=''):
-    from engine.trading import finnhub_client as finnhub
     if provider == 'finnhub':
+        from engine.trading import finnhub_client as finnhub
         return json.dumps(finnhub.set_key(key))
+    if provider == 'x':
+        from engine.trading import news_aggregator as na
+        return json.dumps(na.set_x_token(key))
     return json.dumps({"error": f"unknown provider {provider}"})
 
 @api('getCompanyNews')

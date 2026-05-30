@@ -207,10 +207,13 @@ def getDataStatus():
 
 @eel.expose
 def setApiKey(provider: str = "finnhub", key: str = ""):
-    """Save an API key supplied from the Settings panel (currently Finnhub)."""
-    from engine.trading import finnhub_client as finnhub
+    """Save an API key/token supplied from the Settings panel (Finnhub / X)."""
     if provider == "finnhub":
+        from engine.trading import finnhub_client as finnhub
         return json.dumps(finnhub.set_key(key))
+    if provider == "x":
+        from engine.trading import news_aggregator as na
+        return json.dumps(na.set_x_token(key))
     return json.dumps({"error": f"unknown provider {provider}"})
 
 

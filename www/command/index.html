@@ -389,6 +389,40 @@
       Your key is stored locally on this machine (in <code>jarvis.db</code>) and sent only to Finnhub.
       You can also set the <code>FINNHUB_API_KEY</code> environment variable instead.
     </div>
+
+    <!-- ── X / Twitter breaking-news source ─────────────────────────── -->
+    <div class="settings-divider"></div>
+
+    <div class="settings-head" style="margin-bottom:4px">
+      <div class="card-eyebrow">BREAKING NEWS · OPTIONAL</div>
+      <h3 style="font-size:15px">X / Twitter Instant Headlines</h3>
+      <p class="settings-sub">Paste an X API v2 <b>Bearer token</b> to pull instant breaking
+        headlines from Walter Bloomberg, First Squawk, Reuters &amp; more straight into the
+        news feed. Requires a paid X API plan.</p>
+    </div>
+
+    <div class="settings-status" id="xStatus">
+      <span class="settings-status-dot" style="background:var(--text-faint)"></span>
+      <span id="xStatusText">X source dormant</span>
+    </div>
+
+    <label class="settings-label" for="xTokenInput">X BEARER TOKEN</label>
+    <div class="settings-key-row">
+      <input type="password" id="xTokenInput" placeholder="AAAAAAAAAAAAAAAA…" autocomplete="off" spellcheck="false" />
+      <button class="settings-eye" id="xTokenToggle" title="Show / hide">👁</button>
+    </div>
+
+    <div class="settings-actions">
+      <button class="settings-save" id="xTokenSave">Save &amp; Activate</button>
+      <button class="settings-clear" id="xTokenClear">Clear</button>
+    </div>
+
+    <div class="settings-msg" id="xMsg"></div>
+
+    <div class="settings-note">
+      Tracked handles: <code>@DeItaone</code> <code>@FirstSquawk</code> <code>@Reuters</code> <code>@realDonaldTrump</code>.
+      Stored locally in <code>jarvis.db</code>; also settable via the <code>X_BEARER_TOKEN</code> env var.
+    </div>
   </div>
 </div>
 

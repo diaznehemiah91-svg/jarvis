@@ -961,13 +961,42 @@ function initSettings() {
   document.getElementById('finnhubKeyInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') saveFinnhubKey();
   });
+
+  // X / Twitter token
+  document.getElementById('xTokenSave').addEventListener('click', saveXToken);
+  document.getElementById('xTokenClear').addEventListener('click', clearXToken);
+  document.getElementById('xTokenToggle').addEventListener('click', () => {
+    const inp = document.getElementById('xTokenInput');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+  });
+  document.getElementById('xTokenInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveXToken();
+  });
 }
 
 function openSettings() {
   document.getElementById('settingsOverlay').classList.add('open');
   document.getElementById('settingsMsg').textContent = '';
+  document.getElementById('xMsg').textContent = '';
   document.getElementById('finnhubKeyInput').focus();
   renderSettingsStatus(State.dataStatus);
+  loadNewsStatus();
+}
+
+async function loadNewsStatus() {
+  const st = await call('getNewsStatus');
+  renderXStatus(st);
+}
+
+function renderXStatus(s) {
+  const dot = document.querySelector('#xStatus .settings-status-dot');
+  const txt = document.getElementById('xStatusText');
+  if (!s) return;
+  const on = !!s.x;
+  if (dot) dot.style.background = on ? 'var(--green)' : 'var(--text-faint)';
+  if (txt) txt.innerHTML = on
+    ? '<b style="color:var(--green)">ACTIVE</b> — pulling instant headlines from X'
+    : '<span style="color:var(--text-dim)">Dormant — add a bearer token to activate</span>';
 }
 function closeSettings() { document.getElementById('settingsOverlay').classList.remove('open'); }
 
@@ -1010,6 +1039,33 @@ async function clearFinnhubKey() {
   renderSettingsStatus(st);
   renderDataBadge();
   document.getElementById('settingsMsg').innerHTML = '<span style="color:var(--text-dim)">Key cleared — back to SIM mode.</span>';
+}
+
+async function saveXToken() {
+  const inp = document.getElementById('xTokenInput');
+  const msg = document.getElementById('xMsg');
+  const tok = (inp.value || '').trim();
+  if (!tok) { msg.innerHTML = '<span style="color:var(--red)">Paste a bearer token first.</span>'; return; }
+  msg.innerHTML = '<span style="color:var(--cyan)">Validating with X…</span>';
+  const st = await call('setApiKey', 'x', tok);
+  renderXStatus(st);
+  if (st?.valid === false) {
+    msg.innerHTML = `<span style="color:var(--red)">${st.message || 'Token rejected by X.'}</span>`;
+  } else if (st?.x) {
+    msg.innerHTML = `<span style="color:var(--green)">✓ X activated${st.message ? ' — ' + st.message : ''}. Refreshing feed…</span>`;
+    toast('X LIVE', 'Breaking-news source activated.', 'success');
+    loadNews();
+  } else {
+    msg.innerHTML = `<span style="color:var(--gold)">${st?.message || 'Saved, but X is not active. Check the token.'}</span>`;
+  }
+}
+
+async function clearXToken() {
+  document.getElementById('xTokenInput').value = '';
+  const st = await call('setApiKey', 'x', '');
+  renderXStatus(st);
+  document.getElementById('xMsg').innerHTML = '<span style="color:var(--text-dim)">Token cleared — X source dormant.</span>';
+  loadNews();
 }
 
 async function doSync() {

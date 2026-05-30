@@ -236,8 +236,93 @@ def _rss_feed(name: str, url: str, limit: int = 12, match: str = "") -> list:
 
 # ── source: X / Twitter (paid — dormant until token set) ─────────────────────────
 
+# Runtime-settable bearer token (from the Settings UI). Resolves
+# runtime override → persisted DB value → config/env. Persisted in api_cache.
+_X_TOKEN_CACHE_ID = "__x_bearer_token__"
+_x_runtime = [None]
+
+
+def _load_persisted_x() -> str:
+    try:
+        con = sqlite3.connect(DB_PATH)
+        cur = con.cursor()
+        cur.execute("SELECT payload FROM api_cache WHERE cache_key=?", (_X_TOKEN_CACHE_ID,))
+        row = cur.fetchone()
+        con.close()
+        if row and row[0]:
+            return (json.loads(row[0]) or "").strip()
+    except Exception:
+        pass
+    return ""
+
+
+def _x_token() -> str:
+    if _x_runtime[0] is None:
+        _x_runtime[0] = _load_persisted_x()
+    return (_x_runtime[0] or X_BEARER_TOKEN or "").strip()
+
+
+def _clear_news_cache() -> None:
+    """Drop cached news so the next pull re-blends with the new source."""
+    try:
+        con = sqlite3.connect(DB_PATH)
+        cur = con.cursor()
+        cur.execute("DELETE FROM api_cache WHERE cache_key LIKE 'news:%'")
+        con.commit()
+        con.close()
+    except Exception:
+        pass
+
+
+def set_x_token(token: str) -> dict:
+    """
+    Save an X / Twitter bearer token at runtime (from the Settings UI).
+    Persists to the DB, clears the news cache, and validates the token with a
+    lightweight search call. Returns the updated news status dict.
+    """
+    token = (token or "").strip()
+    _x_runtime[0] = token
+    try:
+        con = sqlite3.connect(DB_PATH)
+        cur = con.cursor()
+        cur.execute(
+            "INSERT OR REPLACE INTO api_cache (cache_key, payload, fetched_at) VALUES (?, ?, datetime('now'))",
+            (_X_TOKEN_CACHE_ID, json.dumps(token)),
+        )
+        con.commit()
+        con.close()
+    except Exception as e:
+        print("[news] could not persist X token:", e)
+
+    _clear_news_cache()
+    st = status()
+    if token and REQUESTS_AVAILABLE:
+        try:
+            r = requests.get(
+                "https://api.twitter.com/2/tweets/search/recent",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"query": "from:DeItaone -is:retweet", "max_results": 10},
+                timeout=8,
+            )
+            if r.status_code == 200:
+                st["valid"] = True
+            elif r.status_code == 429:
+                st["valid"] = True
+                st["message"] = "Token accepted (currently rate-limited)."
+            elif r.status_code in (401, 403):
+                st["valid"] = False
+                st["message"] = "X token rejected (401/403). Check it has v2 read access."
+            else:
+                st["valid"] = None
+                st["message"] = f"Unexpected response from X ({r.status_code})."
+        except Exception as e:
+            st["valid"] = None
+            st["message"] = f"Could not validate token: {e}"
+    return st
+
+
 def x_configured() -> bool:
-    return bool((X_BEARER_TOKEN or "").strip()) and REQUESTS_AVAILABLE
+    return bool(_x_token()) and REQUESTS_AVAILABLE
 
 
 def _x_social(limit: int = 15) -> list:
@@ -254,7 +339,7 @@ def _x_social(limit: int = 15) -> list:
     try:
         r = requests.get(
             "https://api.twitter.com/2/tweets/search/recent",
-            headers={"Authorization": f"Bearer {X_BEARER_TOKEN}"},
+            headers={"Authorization": f"Bearer {_x_token()}"},
             params={"query": query, "max_results": min(max(limit, 10), 100),
                     "tweet.fields": "created_at,author_id"},
             timeout=10,

@@ -1243,6 +1243,11 @@ kbd {
   padding: 1px 5px; border-radius: 4px;
   font-family: var(--font-mono); color: var(--cyan);
 }
+.settings-divider {
+  height: 1px; margin: 20px 0 6px;
+  background: linear-gradient(90deg, transparent, var(--stroke-lit), transparent);
+}
+.settings-modal { max-height: 88vh; overflow-y: auto; }
 
 /* ════ PREMIUM GLOBE HERO (overview) ════════════════════════════════ */
 .globe-hero {
