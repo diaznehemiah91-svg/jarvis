@@ -90,6 +90,8 @@ def score_ticker(ticker: str, regime: Optional[str] = None) -> dict:
     # Price levels
     rows = fetch_ticker_data(ticker, days=5)
     price = (rows[-1]["close"] if rows and rows[-1].get("close") else None)
+    prev_close = (rows[-2]["close"] if len(rows) >= 2 and rows[-2].get("close") else None)
+    change_pct = round((price - prev_close) / prev_close * 100, 2) if price and prev_close else None
 
     entry = target = stop = None
     rr = None
@@ -118,6 +120,8 @@ def score_ticker(ticker: str, regime: Optional[str] = None) -> dict:
         "conviction": conviction,
         "net_score": round(net, 4),
         "price": price,
+        "prev_close": prev_close,
+        "change_pct": change_pct,
         "entry": entry,
         "target": target,
         "stop": stop,

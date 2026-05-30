@@ -1154,8 +1154,104 @@ function handleVoiceCommand(text) {
   Voice.speak("I didn't catch a known command. Try: show heat maps, options, opportunities, flow, or brief me.");
 }
 
-// ════ DETAIL DRAWER ═════════════════════════════════════════════════════════
+// ════ DETAIL DRAWER — EXECUTIVE DASHBOARD ═══════════════════════════════════
+//
+// Three-tier scannable layout:
+//   TIER 1  Identity & quick stats (symbol, price/%chg/mode pills, conviction)
+//   TIER 2  Visual market context  (free TradingView Advanced Chart + 1D/1W/1M)
+//   TIER 3  Deep intelligence      (signal breakdown, levels, supply-chain ripple)
+//
+// The TradingView Advanced Chart Widget is 100% free, client-side, and needs no
+// account or paid data plan. We lazy-load tv.js once, then mount a fresh widget
+// per ticker / timeframe. Nothing here requires an API key.
+
+// NYSE-listed names in our universe; everything else resolves to NASDAQ.
+const TV_EXCHANGE = {
+  DELL:'NYSE', HPE:'NYSE', VRT:'NYSE', ETN:'NYSE', MOD:'NYSE', CIEN:'NYSE',
+  NOK:'NYSE', NEE:'NYSE', GEV:'NYSE', VST:'NYSE', EMR:'NYSE', NVT:'NYSE',
+  FCX:'NYSE', CRM:'NYSE', NOW:'NYSE', ORCL:'NYSE', TSM:'NYSE', ASX:'NYSE',
+  RDW:'NYSE',
+};
+function tvSymbol(t) { return (TV_EXCHANGE[t] || 'NASDAQ') + ':' + t; }
+
+// Lazy-load TradingView's free embed library exactly once.
+let _tvLoading = null;
+function loadTradingView() {
+  if (window.TradingView && window.TradingView.widget) return Promise.resolve();
+  if (_tvLoading) return _tvLoading;
+  _tvLoading = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://s3.tradingview.com/tv.js';
+    s.async = true;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+  return _tvLoading;
+}
+
+// Range presets exposed by the free widget: 1D / 1W / 1M map cleanly to
+// (interval, range) pairs so each tab re-mounts with the right granularity.
+const TV_RANGES = {
+  '1D': { interval: '15', range: '1D' },
+  '1W': { interval: '60', range: '1W' },
+  '1M': { interval: 'D',  range: '1M' },
+};
+let _drawerTicker = null;
+let _drawerRange = '1W';
+
+function mountTVChart(ticker, rangeKey) {
+  const host = document.getElementById('tvChart');
+  if (!host) return;
+  const cfg = TV_RANGES[rangeKey] || TV_RANGES['1W'];
+  host.innerHTML = '';                       // discard previous widget/iframe
+  loadTradingView().then(() => {
+    if (_drawerTicker !== ticker || _drawerRange !== rangeKey) return; // user moved on
+    // eslint-disable-next-line no-new
+    new TradingView.widget({
+      container_id: 'tvChart',
+      autosize: true,
+      symbol: tvSymbol(ticker),
+      interval: cfg.interval,
+      range: cfg.range,
+      timezone: 'Etc/UTC',
+      theme: 'dark',
+      style: '1',                            // candles
+      locale: 'en',
+      toolbar_bg: '#0a1322',
+      enable_publishing: false,
+      allow_symbol_change: false,
+      hide_top_toolbar: false,
+      hide_side_toolbar: true,
+      hide_legend: false,
+      hide_volume: false,                    // volume bars ON
+      studies: ['STD;EMA'],                  // 21-EMA overlay
+      studies_overrides: { 'moving average exponential.length': 21 },
+      overrides: {
+        'paneProperties.background': '#060c16',
+        'paneProperties.backgroundType': 'solid',
+        'paneProperties.vertGridProperties.color': 'rgba(64,120,190,0.06)',
+        'paneProperties.horzGridProperties.color': 'rgba(64,120,190,0.06)',
+        'scalesProperties.textColor': '#6b87a8',
+      },
+    });
+  }).catch(() => {
+    host.innerHTML = '<div class="tv-fallback">Chart unavailable — TradingView could not be reached. '
+      + '(Live charts need an internet connection; no account or API key is required.)</div>';
+  });
+}
+
+// Called by the 1D/1W/1M sub-tabs.
+function setDrawerRange(rangeKey) {
+  _drawerRange = rangeKey;
+  document.querySelectorAll('.tv-tab').forEach(b =>
+    b.classList.toggle('active', b.dataset.range === rangeKey));
+  mountTVChart(_drawerTicker, rangeKey);
+}
+
 async function openDrawer(ticker) {
+  _drawerTicker = ticker;
+  _drawerRange = '1W';
   document.getElementById('drawerOverlay').classList.add('open');
   document.getElementById('drawerBody').innerHTML = `<div class="drawer-loading">Loading ${ticker}…</div>`;
 
@@ -1164,6 +1260,7 @@ async function openDrawer(ticker) {
     call('getFlowRipple', ticker),
     call('getCompanyNews', ticker, 6),
   ]);
+  if (_drawerTicker !== ticker) return;       // a newer drawer opened meanwhile
   if (!assess) {
     document.getElementById('drawerBody').innerHTML = `<div style="color:var(--text-faint);padding:20px">No data for ${ticker}.</div>`;
     return;
@@ -1171,6 +1268,34 @@ async function openDrawer(ticker) {
   const c = assess.components || {};
   const col = actionColor(assess.action);
 
+  // ── TIER 1 helpers ──────────────────────────────────────────────────
+  const chg = assess.change_pct;
+  const chgCol = chg == null ? 'var(--text-dim)' : (chg >= 0 ? 'var(--green)' : 'var(--red)');
+  const chgTxt = chg == null ? '—' : (chg >= 0 ? '▲ +' : '▼ ') + Math.abs(chg).toFixed(2) + '%';
+  const live = State.dataStatus?.mode === 'LIVE';
+  const modeTxt = live ? 'LIVE · FINNHUB' : 'SIM MODE';
+  const modeCls = live ? 'pill-live' : 'pill-sim';
+
+  // Conviction gauge (linear premium bar)
+  const convGauge = `
+    <div class="tier1-conv">
+      <div class="conv-ring" style="--c:${col};--pct:${assess.conviction}">
+        <svg viewBox="0 0 72 72" width="72" height="72">
+          <circle cx="36" cy="36" r="30" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="7"/>
+          <circle cx="36" cy="36" r="30" fill="none" stroke="${col}" stroke-width="7" stroke-linecap="round"
+            stroke-dasharray="${(assess.conviction/100*Math.PI*60).toFixed(1)} 999"
+            transform="rotate(-90 36 36)" style="transition:stroke-dasharray .8s cubic-bezier(.2,.8,.2,1)"/>
+          <text x="36" y="34" text-anchor="middle" fill="${col}" font-family="Orbitron" font-size="17" font-weight="700">${assess.conviction}</text>
+          <text x="36" y="48" text-anchor="middle" fill="#6b87a8" font-family="Rajdhani" font-size="8" letter-spacing="1.5">CONV %</text>
+        </svg>
+      </div>
+      <div class="tier1-conv-meta">
+        <span class="conv-action" style="color:${col};background:${actionBg(assess.action)}">${assess.action}</span>
+        <span class="conv-net">Net signal <b style="color:${scoreColor(assess.net_score)}">${fmt(assess.net_score,3)}</b></span>
+      </div>
+    </div>`;
+
+  // ── TIER 3 helpers ──────────────────────────────────────────────────
   const compBar = (lbl, v) => {
     const sc = scoreColor(v), w = Math.abs(v) * 50, left = v >= 0 ? 50 : 50 - w;
     return `<div class="drawer-comp">
@@ -1180,19 +1305,15 @@ async function openDrawer(ticker) {
     </div>`;
   };
 
-  // Options ideas for this ticker
-  const tickerOpts = (State.options?.ideas || []).filter(i => i.ticker === ticker);
-  const optsHtml = tickerOpts.length ? tickerOpts.map(i => {
-    const oc = i.direction === 'bullish' ? 'var(--green)' : 'var(--red)';
-    return `<div class="drawer-opt-row">
-      <span class="opt-dir-badge" style="color:${oc};border-color:${oc}44;font-size:10px;padding:2px 6px">${i.direction === 'bullish' ? '▲' : '▼'}</span>
-      <span style="color:${oc};font-weight:600;font-size:12px">${i.strategy}</span>
-      <span style="color:var(--text-dim);font-family:var(--font-mono);font-size:11px">${i.contract}</span>
-      <span style="color:var(--cyan);font-family:var(--font-mono);font-size:11px">BE $${i.breakeven ?? '—'}</span>
+  const ripHtml = (ripple?.ripple_effects || []).map(r => {
+    const chips = (r.tickers || []).map(tk =>
+      `<span class="ripple-chip" onclick="openDrawer('${tk}')">${tk}</span>`).join('');
+    return `<div class="ripple-col">
+      <div class="ripple-col-head">${r.sector_name}</div>
+      <div class="ripple-col-chips">${chips || '<span style="color:var(--text-faint);font-size:11px">—</span>'}</div>
     </div>`;
-  }).join('') : '<div style="color:var(--text-faint);font-size:12px">No options setups for this ticker.</div>';
+  }).join('') || '<div style="color:var(--text-faint);font-size:12px">No downstream supply-chain mapping for this ticker.</div>';
 
-  // News items (backend returns { items: [...] })
   const newsArr = Array.isArray(news) ? news : (news?.items || news?.articles || []);
   const newsHtml = newsArr.slice(0, 5).map(raw => {
     const a = newsField(raw);
@@ -1210,63 +1331,82 @@ async function openDrawer(ticker) {
   }).join('') || '<div style="color:var(--text-faint);font-size:12px">No recent news found.</div>';
 
   document.getElementById('drawerBody').innerHTML = `
-    <div class="drawer-sym" style="color:${col}">${assess.ticker}</div>
-    <div class="drawer-sector">${assess.sector || ''}</div>
-
-    <div class="drawer-section">
-      <span class="opp-badge" style="color:${col};background:${actionBg(assess.action)};font-size:14px;padding:8px 16px">
-        ${assess.action} · ${assess.conviction}% conviction
-      </span>
-    </div>
-
-    <div class="drawer-section">
-      <h4>PRICE LEVELS</h4>
-      <div class="drawer-levels">
-        <div class="drawer-level"><div class="drawer-level-lbl">ENTRY</div><div class="drawer-level-val">${usd(assess.entry || assess.price)}</div></div>
-        <div class="drawer-level"><div class="drawer-level-lbl">TARGET</div><div class="drawer-level-val" style="color:var(--green)">${usd(assess.target)}</div></div>
-        <div class="drawer-level"><div class="drawer-level-lbl">STOP</div><div class="drawer-level-val" style="color:var(--red)">${usd(assess.stop)}</div></div>
+    <!-- ░░ TIER 1 — IDENTITY & QUICK STATS ░░ -->
+    <section class="tier tier1">
+      <div class="tier1-id">
+        <div class="tier1-sym" style="color:${col}">${assess.ticker}</div>
+        <div class="tier1-name">${assess.sector || '—'}</div>
       </div>
-      ${assess.risk_reward != null ? `<div style="text-align:center;margin-top:10px;color:var(--text-dim);font-family:var(--font-mono)">Risk / Reward &nbsp; <b style="color:var(--cyan)">${assess.risk_reward} : 1</b></div>` : ''}
-    </div>
-
-    <div class="drawer-section">
-      <h4>SIGNAL BREAKDOWN</h4>
-      ${compBar('Technical', c.technical)}
-      ${compBar('Sentiment', c.sentiment)}
-      ${compBar('Flow', c.flow)}
-      ${compBar('Regime Fit', c.regime_fit)}
-    </div>
-
-    <div class="drawer-section">
-      <h4>ACTIVE SIGNALS</h4>
-      <div class="drawer-signals">
-        ${(assess.signals || []).map(s => `<span class="signal-badge">${s}</span>`).join('') || '<span style="color:var(--text-faint)">No signals.</span>'}
+      <div class="tier1-pills">
+        <span class="stat-pill"><span class="sp-lbl">PRICE</span><span class="sp-val">${usd(assess.price)}</span></span>
+        <span class="stat-pill"><span class="sp-lbl">CHG</span><span class="sp-val" style="color:${chgCol}">${chgTxt}</span></span>
+        <span class="stat-pill ${modeCls}"><span class="sp-dot"></span>${modeTxt}</span>
       </div>
-    </div>
+      ${convGauge}
+    </section>
 
-    <div class="drawer-section">
-      <h4>OPTIONS SETUPS</h4>
-      <div class="drawer-opts">${optsHtml}</div>
-    </div>
-
-    <div class="drawer-section">
-      <h4>SUPPLY-CHAIN RIPPLE</h4>
-      <div class="drawer-ripple">
-        ${(ripple?.ripple_effects || []).map(r => `
-          <div class="ripple-node">
-            <div class="ripple-node-name">${r.sector_name}</div>
-            <div class="ripple-node-tickers">${r.tickers.join(' · ')}</div>
-          </div>`).join('') || '<div style="color:var(--text-faint)">No downstream mapping.</div>'}
+    <!-- ░░ TIER 2 — VISUAL MARKET CONTEXT ░░ -->
+    <section class="tier tier2">
+      <div class="tier-head">
+        <h4>MARKET CHART</h4>
+        <div class="tv-tabs">
+          <button class="tv-tab" data-range="1D" onclick="setDrawerRange('1D')">1D</button>
+          <button class="tv-tab active" data-range="1W" onclick="setDrawerRange('1W')">1W</button>
+          <button class="tv-tab" data-range="1M" onclick="setDrawerRange('1M')">1M</button>
+        </div>
       </div>
-    </div>
+      <div class="tv-shell"><div id="tvChart"></div></div>
+      <div class="tv-note">Free TradingView Advanced Chart · Dark · Volume · 21-EMA</div>
+    </section>
 
-    <div class="drawer-section">
-      <h4>RECENT NEWS</h4>
-      <div class="drawer-news">${newsHtml}</div>
-    </div>`;
+    <!-- ░░ TIER 3 — DEEP INTELLIGENCE & SUPPLY CHAIN ░░ -->
+    <section class="tier tier3">
+      <div class="tier-block">
+        <h4>TECHNICAL BREAKDOWN</h4>
+        ${compBar('Technical', c.technical)}
+        ${compBar('Sentiment', c.sentiment)}
+        ${compBar('Flow', c.flow)}
+        ${compBar('Regime Fit', c.regime_fit)}
+      </div>
+
+      <div class="tier-block">
+        <h4>STRATEGY LEVELS</h4>
+        <div class="lvl-grid">
+          <div class="lvl-box lvl-entry"><div class="lvl-lbl">ENTRY</div><div class="lvl-val">${usd(assess.entry || assess.price)}</div></div>
+          <div class="lvl-box lvl-target"><div class="lvl-lbl">TARGET</div><div class="lvl-val">${usd(assess.target)}</div></div>
+          <div class="lvl-box lvl-stop"><div class="lvl-lbl">STOP</div><div class="lvl-val">${usd(assess.stop)}</div></div>
+        </div>
+        ${assess.risk_reward != null
+          ? `<div class="lvl-rr">RISK / REWARD <b style="color:var(--cyan)">${assess.risk_reward} : 1</b></div>` : ''}
+      </div>
+
+      <div class="tier-block">
+        <h4>ACTIVE SIGNALS</h4>
+        <div class="drawer-signals">
+          ${(assess.signals || []).map(s => `<span class="signal-badge">${s}</span>`).join('') || '<span style="color:var(--text-faint)">No signals.</span>'}
+        </div>
+      </div>
+
+      <div class="tier-block">
+        <h4>SUPPLY-CHAIN RIPPLE</h4>
+        <div class="ripple-cols">${ripHtml}</div>
+      </div>
+
+      <div class="tier-block">
+        <h4>RECENT NEWS</h4>
+        <div class="drawer-news">${newsHtml}</div>
+      </div>
+    </section>`;
+
+  mountTVChart(ticker, _drawerRange);
 }
 
-function closeDrawer() { document.getElementById('drawerOverlay').classList.remove('open'); }
+function closeDrawer() {
+  document.getElementById('drawerOverlay').classList.remove('open');
+  const host = document.getElementById('tvChart');
+  if (host) host.innerHTML = '';            // tear down the widget iframe
+  _drawerTicker = null;
+}
 
 // ════ COMMAND PALETTE ═══════════════════════════════════════════════════════
 let paletteItems = [], paletteSel = 0;
