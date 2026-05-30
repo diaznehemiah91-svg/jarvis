@@ -234,12 +234,35 @@ def _rss_feed(name: str, url: str, limit: int = 12, match: str = "") -> list:
     return out
 
 
-# ── source: X / Twitter (paid — dormant until token set) ─────────────────────────
+# ── source: X / Twitter (free user-timeline endpoint) ────────────────────────────
+#
+# Uses GET /2/users/:id/tweets — available on the free X API tier.
+# Breaking-news sources + market-moving CEOs are all covered.
+# Handles with a None ID are resolved once via /2/users/by/username/:handle
+# and cached for 30 days, so no hard-coded guessing is needed.
 
-# Runtime-settable bearer token (from the Settings UI). Resolves
-# runtime override → persisted DB value → config/env. Persisted in api_cache.
 _X_TOKEN_CACHE_ID = "__x_bearer_token__"
 _x_runtime = [None]
+
+# Static IDs for high-frequency breaking-news accounts (avoids an extra lookup).
+# CEO handles are resolved dynamically on first use and cached in the DB.
+_X_USER_IDS: dict = {
+    # ── Breaking news ─────────────────────────────────────────────
+    "DeItaone":         233682977,
+    "WalterBloomberg":  None,
+    "FirstSquawk":      1628122394,
+    "Reuters":          1652541,
+    "realDonaldTrump":  25073877,
+    # ── High-impact CEOs ──────────────────────────────────────────
+    "elonmusk":         44196397,   # Tesla / X
+    "tim_cook":         None,       # Apple
+    "satyanadella":     None,       # Microsoft
+    "sundarpichai":     None,       # Google / Alphabet
+    "zuck":             None,       # Meta
+    "ajassy":           None,       # Amazon
+    "jensenhuang":      None,       # NVIDIA
+    "LisaSu":           None,       # AMD
+}
 
 
 def _load_persisted_x() -> str:
@@ -274,14 +297,42 @@ def _clear_news_cache() -> None:
         pass
 
 
+def _resolve_user_id(handle: str, token: str) -> int | None:
+    """
+    Look up a numeric X user ID by @handle using the free username endpoint.
+    Result is cached for 30 days so each handle is resolved at most once.
+    """
+    cache_key = f"x:uid:{handle.lower()}"
+    cached = _cache_get(cache_key, 30 * 24 * 3600)
+    if cached and cached.get("id"):
+        return int(cached["id"])
+    if not REQUESTS_AVAILABLE:
+        return None
+    try:
+        r = requests.get(
+            f"https://api.twitter.com/2/users/by/username/{handle}",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=8,
+        )
+        if r.status_code == 200:
+            uid = r.json().get("data", {}).get("id")
+            if uid:
+                _cache_set(cache_key, {"id": uid})
+                return int(uid)
+    except Exception:
+        pass
+    return None
+
+
 def set_x_token(token: str) -> dict:
     """
     Save an X / Twitter bearer token at runtime (from the Settings UI).
-    Persists to the DB, clears the news cache, and validates the token with a
-    lightweight search call. Returns the updated news status dict.
+    Persists to DB, clears news cache, and validates via the free user-timeline
+    endpoint (no paid search tier required). Returns the updated status dict.
     """
     token = (token or "").strip()
     _x_runtime[0] = token
+    # Also clear any cached user-ID lookups so they re-resolve with new token.
     try:
         con = sqlite3.connect(DB_PATH)
         cur = con.cursor()
@@ -297,11 +348,12 @@ def set_x_token(token: str) -> dict:
     _clear_news_cache()
     st = status()
     if token and REQUESTS_AVAILABLE:
+        # Validate using the free user-timeline endpoint (Reuters, known ID).
         try:
             r = requests.get(
-                "https://api.twitter.com/2/tweets/search/recent",
+                "https://api.twitter.com/2/users/1652541/tweets",
                 headers={"Authorization": f"Bearer {token}"},
-                params={"query": "from:DeItaone -is:retweet", "max_results": 10},
+                params={"max_results": 5},
                 timeout=8,
             )
             if r.status_code == 200:
@@ -311,7 +363,7 @@ def set_x_token(token: str) -> dict:
                 st["message"] = "Token accepted (currently rate-limited)."
             elif r.status_code in (401, 403):
                 st["valid"] = False
-                st["message"] = "X token rejected (401/403). Check it has v2 read access."
+                st["message"] = "X token rejected (401/403). Verify the bearer token has v2 read access."
             else:
                 st["valid"] = None
                 st["message"] = f"Unexpected response from X ({r.status_code})."
@@ -325,33 +377,43 @@ def x_configured() -> bool:
     return bool(_x_token()) and REQUESTS_AVAILABLE
 
 
-def _x_social(limit: int = 15) -> list:
+def _x_social(limit: int = 20) -> list:
     """
-    Pull recent posts from the configured breaking-news handles via the X API v2.
-    Requires a paid X Bearer token (X_BEARER_TOKEN). Returns [] when not set so
-    the rest of the feed keeps working.
+    Pull recent tweets from breaking-news feeds + market-moving CEOs using the
+    free GET /2/users/:id/tweets endpoint (no paid search tier required).
+    Returns [] when no bearer token is configured.
     """
     if not x_configured():
         return []
+    token = _x_token()
     out = []
-    handles = " OR ".join(f"from:{h}" for h in X_NEWS_HANDLES)
-    query = f"({handles}) -is:retweet"
-    try:
-        r = requests.get(
-            "https://api.twitter.com/2/tweets/search/recent",
-            headers={"Authorization": f"Bearer {_x_token()}"},
-            params={"query": query, "max_results": min(max(limit, 10), 100),
-                    "tweet.fields": "created_at,author_id"},
-            timeout=10,
-        )
-        if r.status_code != 200:
-            return []
-        for t in r.json().get("data", [])[:limit]:
-            ts = _parse_iso(t.get("created_at", ""))
-            out.append(_mk(t.get("text", ""), "https://x.com/i/web/status/" + t.get("id", ""),
-                           "X", ts))
-    except Exception:
-        return []
+    per_user = max(5, limit // max(len(_X_USER_IDS), 1))
+
+    for handle, uid in _X_USER_IDS.items():
+        if uid is None:
+            uid = _resolve_user_id(handle, token)
+        if not uid:
+            continue
+        try:
+            r = requests.get(
+                f"https://api.twitter.com/2/users/{uid}/tweets",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"max_results": per_user, "tweet.fields": "created_at"},
+                timeout=10,
+            )
+            if r.status_code == 429:
+                break   # hit rate limit — return what we have so far
+            if r.status_code != 200:
+                continue
+            for t in r.json().get("data", []):
+                ts = _parse_iso(t.get("created_at", ""))
+                out.append(_mk(
+                    t.get("text", ""),
+                    "https://x.com/i/web/status/" + t.get("id", ""),
+                    "X", ts,
+                ))
+        except Exception:
+            continue
     return out
 
 
@@ -505,7 +567,7 @@ def status() -> dict:
         "rss": REQUESTS_AVAILABLE and bool(RSS_FEEDS),
         "reddit": REQUESTS_AVAILABLE,
         "x": x_configured(),
-        "x_handles": X_NEWS_HANDLES if x_configured() else [],
+        "x_handles": list(_X_USER_IDS.keys()) if x_configured() else [],
         "vader": VADER_AVAILABLE,
         "live_sources": _live_sources(),
     }

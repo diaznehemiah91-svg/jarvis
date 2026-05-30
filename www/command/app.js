@@ -351,9 +351,15 @@ function initGlobeHero() {
   if (d) d.textContent = new Date().toLocaleDateString('en-US',
     { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
-  // Build the WebGL globe instance (renders the Earth immediately)
+  // Build the WebGL globe after one rAF so CSS layout has finished sizing the container.
   if (typeof Globe !== 'undefined' && Globe.create && !ovGlobe) {
-    ovGlobe = Globe.create('globeHeroStage', { onClick: openDrawer });
+    requestAnimationFrame(() => {
+      if (!ovGlobe) {
+        ovGlobe = Globe.create('globeHeroStage', { onClick: openDrawer });
+        // If market data is already loaded, paint markers immediately.
+        if (ovGlobe && State.heatmap) renderOverviewGlobe();
+      }
+    });
   }
 
   // Controls
