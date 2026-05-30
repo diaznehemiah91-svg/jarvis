@@ -406,10 +406,12 @@ function renderNews() {
 
 // ════ FULL HEATMAP VIEW (legacy flat tiles — kept as fallback) ════════════════
 function renderHeatmap() {
+  const wrap = document.getElementById('heatWrap');
+  if (!wrap) return; // replaced by 3D globe; guard against missing element
   const sectors = (State.heatmap?.sectors || []).filter(
     s => State.layerFilter === 'all' || s.layer === State.layerFilter
   );
-  document.getElementById('heatWrap').innerHTML = sectors.map(s => `
+  wrap.innerHTML = sectors.map(s => `
     <div class="heat-sector">
       <div class="heat-sector-head">
         <span class="heat-sector-name">${s.name}</span>
