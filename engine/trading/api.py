@@ -205,6 +205,15 @@ def getDataStatus():
     return json.dumps(finnhub.status())
 
 
+@eel.expose
+def setApiKey(provider: str = "finnhub", key: str = ""):
+    """Save an API key supplied from the Settings panel (currently Finnhub)."""
+    from engine.trading import finnhub_client as finnhub
+    if provider == "finnhub":
+        return json.dumps(finnhub.set_key(key))
+    return json.dumps({"error": f"unknown provider {provider}"})
+
+
 # ── Background refresh ────────────────────────────────────────────────────────
 
 def _background_refresh():

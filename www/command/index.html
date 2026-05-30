@@ -53,6 +53,9 @@
     <button class="icon-btn voice-btn" id="voiceBtn" title="Voice command (V)">
       <span class="voice-orb"></span><span class="lbl">JARVIS</span>
     </button>
+    <button class="icon-btn" id="settingsBtn" title="Settings / API keys">
+      <span class="i">⚙</span><span class="lbl">KEYS</span>
+    </button>
     <a class="icon-btn" href="/index.html" title="Classic UI">⌂</a>
   </div>
 </header>
@@ -288,6 +291,42 @@
     <button class="drawer-close" id="drawerClose">✕</button>
     <div id="drawerBody"></div>
   </aside>
+</div>
+
+<!-- ═══ SETTINGS MODAL ════════════════════════════════════════════════ -->
+<div class="settings-overlay" id="settingsOverlay">
+  <div class="settings-modal glass">
+    <button class="settings-close" id="settingsClose">✕</button>
+    <div class="settings-head">
+      <div class="card-eyebrow">DATA SOURCE</div>
+      <h3>Connect Live Market Data</h3>
+      <p class="settings-sub">Paste your free Finnhub API key to switch JARVIS from SIM to LIVE.
+        Get one at <a href="https://finnhub.io/register" target="_blank">finnhub.io/register</a>.</p>
+    </div>
+
+    <div class="settings-status" id="settingsStatus">
+      <span class="settings-status-dot"></span>
+      <span id="settingsStatusText">Checking status…</span>
+    </div>
+
+    <label class="settings-label" for="finnhubKeyInput">FINNHUB API KEY</label>
+    <div class="settings-key-row">
+      <input type="password" id="finnhubKeyInput" placeholder="d8cit31r01qidic84es0…" autocomplete="off" spellcheck="false" />
+      <button class="settings-eye" id="finnhubKeyToggle" title="Show / hide">👁</button>
+    </div>
+
+    <div class="settings-actions">
+      <button class="settings-save" id="finnhubKeySave">Save &amp; Connect</button>
+      <button class="settings-clear" id="finnhubKeyClear">Clear</button>
+    </div>
+
+    <div class="settings-msg" id="settingsMsg"></div>
+
+    <div class="settings-note">
+      Your key is stored locally on this machine (in <code>jarvis.db</code>) and sent only to Finnhub.
+      You can also set the <code>FINNHUB_API_KEY</code> environment variable instead.
+    </div>
+  </div>
 </div>
 
 <!-- ═══ VOICE HUD ═════════════════════════════════════════════════════ -->

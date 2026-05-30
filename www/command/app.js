@@ -769,6 +769,77 @@ function initButtons() {
   document.getElementById('briefBtn').addEventListener('click', speakBriefing);
   document.getElementById('voiceBtn').addEventListener('click', () => Voice.startListening(handleVoiceCommand));
   document.getElementById('searchTrigger').addEventListener('click', openPalette);
+  initSettings();
+}
+
+// ════ SETTINGS / API KEYS ═══════════════════════════════════════════════════
+function initSettings() {
+  document.getElementById('settingsBtn').addEventListener('click', openSettings);
+  document.getElementById('settingsClose').addEventListener('click', closeSettings);
+  // Clicking the SIM/LIVE data badge also opens the key panel.
+  const badge = document.getElementById('dataBadge');
+  if (badge) { badge.style.cursor = 'pointer'; badge.addEventListener('click', openSettings); }
+  document.getElementById('settingsOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'settingsOverlay') closeSettings();
+  });
+  document.getElementById('finnhubKeySave').addEventListener('click', saveFinnhubKey);
+  document.getElementById('finnhubKeyClear').addEventListener('click', clearFinnhubKey);
+  document.getElementById('finnhubKeyToggle').addEventListener('click', () => {
+    const inp = document.getElementById('finnhubKeyInput');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+  });
+  document.getElementById('finnhubKeyInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveFinnhubKey();
+  });
+}
+
+function openSettings() {
+  document.getElementById('settingsOverlay').classList.add('open');
+  document.getElementById('settingsMsg').textContent = '';
+  document.getElementById('finnhubKeyInput').focus();
+  renderSettingsStatus(State.dataStatus);
+}
+function closeSettings() { document.getElementById('settingsOverlay').classList.remove('open'); }
+
+function renderSettingsStatus(s) {
+  const dot = document.querySelector('.settings-status-dot');
+  const txt = document.getElementById('settingsStatusText');
+  if (!s) { if (txt) txt.textContent = 'Status unknown'; return; }
+  const live = s.mode === 'LIVE';
+  if (dot) dot.style.background = live ? 'var(--green)' : 'var(--gold)';
+  if (txt) txt.innerHTML = live
+    ? '<b style="color:var(--green)">LIVE</b> — connected to Finnhub'
+    : '<b style="color:var(--gold)">SIM</b> — using simulated data (no key yet)';
+}
+
+async function saveFinnhubKey() {
+  const inp = document.getElementById('finnhubKeyInput');
+  const msg = document.getElementById('settingsMsg');
+  const key = (inp.value || '').trim();
+  if (!key) { msg.innerHTML = '<span style="color:var(--red)">Enter a key first.</span>'; return; }
+  msg.innerHTML = '<span style="color:var(--cyan)">Validating with Finnhub…</span>';
+  const st = await call('setApiKey', 'finnhub', key);
+  State.dataStatus = st;
+  renderSettingsStatus(st);
+  renderDataBadge();
+  if (st?.valid === false) {
+    msg.innerHTML = `<span style="color:var(--red)">${st.message || 'Key rejected by Finnhub.'}</span>`;
+  } else if (st?.mode === 'LIVE') {
+    msg.innerHTML = '<span style="color:var(--green)">✓ Connected. Syncing live data…</span>';
+    toast('LIVE', 'Finnhub key saved — JARVIS is now on live data.', 'success');
+    setTimeout(() => { closeSettings(); doSync(); }, 900);
+  } else {
+    msg.innerHTML = '<span style="color:var(--gold)">Saved, but still in SIM mode. Check the key.</span>';
+  }
+}
+
+async function clearFinnhubKey() {
+  document.getElementById('finnhubKeyInput').value = '';
+  const st = await call('setApiKey', 'finnhub', '');
+  State.dataStatus = st;
+  renderSettingsStatus(st);
+  renderDataBadge();
+  document.getElementById('settingsMsg').innerHTML = '<span style="color:var(--text-dim)">Key cleared — back to SIM mode.</span>';
 }
 
 async function doSync() {
@@ -1026,7 +1097,7 @@ function initKeyboard() {
       return;
     }
     if (document.activeElement.tagName === 'INPUT') return;
-    if (e.key === 'Escape') { closeDrawer(); Voice.setHud(false); }
+    if (e.key === 'Escape') { closeDrawer(); closeSettings(); Voice.setHud(false); }
     if (e.key === '/') { e.preventDefault(); openPalette(); }
     const map = { '1': 'overview', '2': 'heatmap', '3': 'opportunities', '4': 'options', '5': 'flow', '6': 'news' };
     if (map[e.key]) switchView(map[e.key]);

@@ -46,8 +46,73 @@ TTL_SYMBOL_SEARCH = 24 * 3600
 TTL_SYMBOLS = 7 * 24 * 3600
 
 
+# Runtime key override (set from the Settings UI). Takes precedence over the
+# config/env key and is persisted in the api_cache table so it survives restarts.
+_runtime_key = [None]  # boxed so it can be mutated from helpers
+_KEY_CACHE_ID = "__finnhub_api_key__"
+
+
+def _load_persisted_key() -> str:
+    """Read a previously saved key from the DB (set via the Settings panel)."""
+    try:
+        con = _con()
+        cur = con.cursor()
+        cur.execute("SELECT payload FROM api_cache WHERE cache_key=?", (_KEY_CACHE_ID,))
+        row = cur.fetchone()
+        con.close()
+        if row and row[0]:
+            return (json.loads(row[0]) or "").strip()
+    except Exception:
+        pass
+    return ""
+
+
 def _key() -> str:
-    return (FINNHUB_KEY or "").strip()
+    # Priority: runtime override → persisted (DB) → config/env.
+    if _runtime_key[0] is None:
+        _runtime_key[0] = _load_persisted_key()
+    return (_runtime_key[0] or FINNHUB_KEY or "").strip()
+
+
+def set_key(key: str) -> dict:
+    """
+    Save a Finnhub API key supplied at runtime (from the Settings UI).
+    Persists to the DB so it survives a restart, and validates it with a
+    lightweight live quote call. Returns the updated status dict.
+    """
+    key = (key or "").strip()
+    _runtime_key[0] = key
+    # Persist (or clear) in the cache table.
+    try:
+        con = _con()
+        cur = con.cursor()
+        cur.execute(
+            "INSERT OR REPLACE INTO api_cache (cache_key, payload, fetched_at) VALUES (?, ?, ?)",
+            (_KEY_CACHE_ID, json.dumps(key), datetime.now().isoformat()),
+        )
+        con.commit()
+        con.close()
+    except Exception as e:
+        print(f"[finnhub] could not persist key: {e}")
+
+    st = status()
+    # Validate with a real call if a key was provided.
+    if key and REQUESTS_AVAILABLE:
+        try:
+            r = requests.get(
+                f"{BASE}/quote",
+                params={"symbol": "AAPL", "token": key},
+                timeout=8,
+            )
+            ok = r.status_code == 200 and isinstance(r.json().get("c"), (int, float))
+            st["valid"] = bool(ok)
+            if r.status_code == 401 or r.status_code == 403:
+                st["valid"] = False
+                st["message"] = "Key rejected by Finnhub (401/403)."
+        except Exception as e:
+            st["valid"] = None
+            st["message"] = f"Could not validate key: {e}"
+    return st
 
 
 def is_configured() -> bool:
