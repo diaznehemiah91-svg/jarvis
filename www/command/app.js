@@ -20,7 +20,9 @@ const State = {
   optDir: 'all',
 };
 
-let globeInitialized = false;
+let globeInitialized = false;   // heatmap-view globe
+let ovGlobe = null;             // overview hero globe instance
+let hmGlobe = null;             // heatmap-view globe instance
 
 // ── eel call helper (works with real eel and the demo shim) ──────────────────
 function call(fn, ...args) {
@@ -43,6 +45,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initKeyboard();
   initVoice();
   initButtons();
+  initGlobeHero();
   updateMarketStatus();
   setInterval(updateMarketStatus, 30000);
 
@@ -90,6 +93,7 @@ async function loadAll() {
   renderRotationBanner();
   renderFeed();
   renderMiniHeat();
+  renderOverviewGlobe();
   if (globeInitialized) renderGlobe(State.layerFilter);
   renderOpportunities();
   renderOptions();
@@ -328,13 +332,93 @@ function renderMiniHeat() {
     </div>`).join('');
 }
 
-// ════ 3D GLOBE VIEW ══════════════════════════════════════════════════════════
+// ════ OVERVIEW PREMIUM GLOBE HERO ═════════════════════════════════════════════
+function allHeatmapTiles() {
+  const tiles = [];
+  (State.heatmap?.sectors || []).forEach(s => {
+    s.tiles.forEach(t => tiles.push({ ...t, layer: s.layer, sector: s.name }));
+  });
+  return tiles;
+}
+
+function initGlobeHero() {
+  // Date stamp
+  const d = document.getElementById('ghDate');
+  if (d) d.textContent = new Date().toLocaleDateString('en-US',
+    { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+  // Build the WebGL globe instance (renders the Earth immediately)
+  if (typeof Globe !== 'undefined' && Globe.create && !ovGlobe) {
+    ovGlobe = Globe.create('globeHeroStage', { onClick: openDrawer });
+  }
+
+  // Controls
+  const rot = document.getElementById('ghRotate');
+  const rst = document.getElementById('ghReset');
+  if (rot) {
+    rot.classList.add('active');
+    rot.addEventListener('click', () => {
+      if (!ovGlobe) return;
+      const on = !ovGlobe.isRotating();
+      ovGlobe.setRotate(on);
+      rot.classList.toggle('active', on);
+    });
+  }
+  if (rst) rst.addEventListener('click', () => ovGlobe && ovGlobe.reset());
+}
+
+function renderOverviewGlobe() {
+  const tiles = allHeatmapTiles();
+  if (ovGlobe) ovGlobe.setData(tiles, 'all');
+  renderGlobeWatchlist(tiles);
+  renderGlobeStats(tiles);
+}
+
+function renderGlobeWatchlist(tiles) {
+  const el = document.getElementById('ghWatch');
+  if (!el) return;
+  const sorted = [...tiles].sort((a, b) => Math.abs(b.net_score) - Math.abs(a.net_score)).slice(0, 12);
+  el.innerHTML = sorted.map(t => {
+    const bull = t.net_score >= 0;
+    const col = scoreColor(t.net_score);
+    const w = Math.min(100, Math.abs(t.net_score) * 100);
+    const label = t.action || (bull ? 'BULLISH' : 'BEARISH');
+    return `<div class="gh-watch-row" onclick="openDrawer('${t.ticker}')" title="${t.sector || ''}">
+      <span class="gh-watch-sym">${t.ticker}</span>
+      <span class="gh-watch-spark"><i style="width:${w}%;background:${col}"></i></span>
+      <span class="gh-watch-badge" style="color:${col};background:${col}1f">${label}</span>
+    </div>`;
+  }).join('') || '<div style="color:var(--text-faint);font-size:11px;padding:6px">Sync to load.</div>';
+}
+
+function renderGlobeStats(tiles) {
+  const el = document.getElementById('ghStats');
+  if (!el) return;
+  let bull = 0, bear = 0, neutral = 0;
+  tiles.forEach(t => {
+    if (t.net_score > 0.05) bull++;
+    else if (t.net_score < -0.05) bear++;
+    else neutral++;
+  });
+  const total = tiles.length;
+  const cells = [
+    ['#1fe0a0', bull, 'BULLISH'],
+    ['#ff5470', bear, 'BEARISH'],
+    ['#ffc857', neutral, 'NEUTRAL'],
+    ['#00d4ff', total, 'TOTAL'],
+  ];
+  el.innerHTML = cells.map(([c, n, l]) =>
+    `<div class="gh-stat"><div class="gh-stat-num" style="color:${c}">${n}</div><div class="gh-stat-lbl">${l}</div></div>`
+  ).join('');
+}
+
+// ════ 3D GLOBE VIEW (Heat Maps tab) ═══════════════════════════════════════════
 function renderGlobe(layerFilter) {
   const allTiles = [];
   (State.heatmap?.sectors || []).forEach(s => {
     s.tiles.forEach(t => allTiles.push({ ...t, layer: s.layer, sector: s.name }));
   });
-  if (typeof Globe !== 'undefined') Globe.setData(allTiles, layerFilter || State.layerFilter || 'all');
+  if (hmGlobe) hmGlobe.setData(allTiles, layerFilter || State.layerFilter || 'all');
   renderGlobeMovers(allTiles, layerFilter || State.layerFilter || 'all');
 }
 
@@ -752,9 +836,9 @@ function switchView(view) {
   document.querySelector('.stage').scrollTop = 0;
 
   if (view === 'heatmap') {
-    if (!globeInitialized && typeof Globe !== 'undefined') {
+    if (!globeInitialized && typeof Globe !== 'undefined' && Globe.create) {
       globeInitialized = true;
-      Globe.init('globeStage', openDrawer);
+      hmGlobe = Globe.create('globeStage', { onClick: openDrawer });
       if (State.heatmap) renderGlobe(State.layerFilter);
     }
   }

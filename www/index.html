@@ -752,6 +752,51 @@
     <script src="controller.js"></script>
     <script src="/eel.js"></script>
 
+    <!-- ── Loader auto-boot fallback ───────────────────────────────────────
+         The intro sequence (Loader → FaceAuth → Greet → main blob) is normally
+         driven by the Python backend via eel push-callbacks. When the page is
+         opened without that live backend (e.g. the demo Flask server) those
+         callbacks never fire and the UI is stuck on the loader. This watchdog
+         advances the sequence client-side only if the backend hasn't already. -->
+    <script>
+    (function () {
+      function el(id){ return document.getElementById(id); }
+      function visible(id){ var e = el(id); return e && !e.hidden; }
+      function hide(id){ var e = el(id); if (e) e.hidden = true; }
+      function show(id){ var e = el(id); if (e) e.hidden = false; }
+
+      function autoBoot() {
+        // If a real backend already moved past the loader, stand down.
+        if (!visible('Loader')) return;
+
+        hide('Loader'); show('FaceAuth');
+        setTimeout(function () {
+          if (!visible('FaceAuth')) return;
+          hide('FaceAuth'); show('FaceAuthSuccess');
+        }, 1100);
+        setTimeout(function () {
+          if (!el('Start') || el('Start').hidden) return;
+          hide('FaceAuthSuccess'); show('HelloGreet');
+        }, 2200);
+        setTimeout(function () {
+          if (!el('Start') || el('Start').hidden) return;
+          hide('Start');
+          var oval = el('Oval');
+          if (oval) {
+            oval.hidden = false;
+            oval.classList.add('animate__animated', 'animate__zoomIn');
+          }
+        }, 3400);
+      }
+
+      // Try to wake the real backend; harmless if it's the demo shim.
+      window.addEventListener('load', function () {
+        try { if (window.eel && eel.init) eel.init(); } catch (e) {}
+        // Give a live backend time to take over before falling back.
+        setTimeout(autoBoot, 1800);
+      });
+    })();
+    </script>
 
 </body>
 

@@ -103,6 +103,49 @@
       <button class="rot-dismiss" onclick="document.getElementById('rotationBanner').style.display='none'">✕</button>
     </div>
 
+    <!-- ── PREMIUM 3D GLOBE HERO ─────────────────────────────────────── -->
+    <div class="globe-hero glass" id="globeHero">
+      <div class="globe-hero-stage" id="globeHeroStage"></div>
+
+      <!-- top bar: title + live clock -->
+      <div class="gh-topbar">
+        <div class="gh-title">
+          <span class="gh-title-main">JARVIS</span>
+          <span class="gh-title-sub">GLOBAL MARKET INTELLIGENCE</span>
+        </div>
+        <div class="gh-live">
+          <span class="gh-live-dot"></span> LIVE
+          <span class="gh-live-date" id="ghDate">—</span>
+        </div>
+      </div>
+
+      <!-- left: critical watchlist -->
+      <aside class="gh-watch">
+        <div class="gh-watch-head">◆ CRITICAL WATCHLIST</div>
+        <div class="gh-watch-list" id="ghWatch"></div>
+      </aside>
+
+      <!-- bottom-left: legend -->
+      <div class="gh-legend">
+        <div class="gh-legend-title">CONVICTION</div>
+        <div class="gh-legend-row"><span class="gh-dot" style="background:#1fe0a0"></span> Strong Bullish</div>
+        <div class="gh-legend-row"><span class="gh-dot" style="background:#7fd47a"></span> Bullish</div>
+        <div class="gh-legend-row"><span class="gh-dot" style="background:#ffc857"></span> Neutral</div>
+        <div class="gh-legend-row"><span class="gh-dot" style="background:#ff9f45"></span> Bearish</div>
+        <div class="gh-legend-row"><span class="gh-dot" style="background:#ff5470"></span> Strong Bearish</div>
+      </div>
+
+      <!-- bottom-center: stat counters -->
+      <div class="gh-stats" id="ghStats"></div>
+
+      <!-- bottom-right: controls -->
+      <div class="gh-controls">
+        <button class="gh-ctrl" id="ghRotate" title="Toggle rotation">◎ <span>Rotate</span></button>
+        <button class="gh-ctrl" id="ghReset" title="Reset view">⟲ <span>Reset</span></button>
+        <button class="gh-ctrl" data-goto="heatmap" title="Open full map">⛶ <span>Expand</span></button>
+      </div>
+    </div>
+
     <div class="view-grid overview-grid">
 
       <!-- Regime hero -->
