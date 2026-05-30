@@ -103,6 +103,9 @@
       <button class="rot-dismiss" onclick="document.getElementById('rotationBanner').style.display='none'">✕</button>
     </div>
 
+    <!-- ── GLOBE + BREAKING NEWS (side by side) ──────────────────────── -->
+    <div class="overview-top">
+
     <!-- ── PREMIUM 3D GLOBE HERO ─────────────────────────────────────── -->
     <div class="globe-hero glass" id="globeHero">
       <div class="globe-hero-stage" id="globeHeroStage"></div>
@@ -145,6 +148,23 @@
         <button class="gh-ctrl" data-goto="heatmap" title="Open full map">⛶ <span>Expand</span></button>
       </div>
     </div>
+
+    <!-- ── BREAKING NEWS RAIL ────────────────────────────────────────── -->
+    <aside class="news-rail glass" id="newsRail">
+      <div class="news-rail-head">
+        <div class="news-rail-tabs">
+          <button class="nr-tab active" data-nrtab="power">⚡ Power</button>
+          <button class="nr-tab" data-nrtab="market">Market</button>
+        </div>
+        <button class="nr-refresh" id="nrRefresh" title="Refresh headlines">⟳</button>
+      </div>
+      <div class="news-rail-body" id="newsRailBody">
+        <div class="nr-loading">Loading live headlines…</div>
+      </div>
+      <button class="news-rail-more" data-goto="news">All market intelligence →</button>
+    </aside>
+
+    </div><!-- /.overview-top -->
 
     <div class="view-grid overview-grid">
 

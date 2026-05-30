@@ -17,6 +17,7 @@ const State = {
   flowFilter: 'all',
   layerFilter: 'all',
   newsTab: 'power',
+  nrTab: 'power',
   optDir: 'all',
 };
 
@@ -46,10 +47,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   initVoice();
   initButtons();
   initGlobeHero();
+  initNewsRail();
   updateMarketStatus();
   setInterval(updateMarketStatus, 30000);
 
   await loadAll();
+  loadNews();                              // populate the overview Breaking-News rail
+  setInterval(loadNews, 4 * 60 * 1000);    // refresh headlines every 4 min
   setInterval(loadAll, 5 * 60 * 1000); // auto-refresh every 5 min
 
   // Greet once data is ready
@@ -449,23 +453,105 @@ async function loadNews() {
   ]);
   State.news = { power, market };
   renderNews();
+  renderNewsRail();
+}
+
+// ════ OVERVIEW BREAKING-NEWS RAIL ═════════════════════════════════════════════
+function initNewsRail() {
+  document.querySelectorAll('[data-nrtab]').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('[data-nrtab]').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    State.nrTab = b.dataset.nrtab;
+    renderNewsRail();
+  }));
+  const r = document.getElementById('nrRefresh');
+  if (r) r.addEventListener('click', () => {
+    document.getElementById('newsRailBody').innerHTML = '<div class="nr-loading">Refreshing headlines…</div>';
+    loadNews();
+  });
+}
+
+function newsArticles(tab) {
+  const data = State.news?.[tab];
+  if (Array.isArray(data)) return data;
+  return data?.items || data?.articles || [];
+}
+// Normalize a news item across backend/legacy field names.
+function newsField(a) {
+  return {
+    title: a.headline || a.title || '—',
+    source: a.source || 'News',
+    sentiment: a.sentiment || 0,
+    power: a.power != null ? a.power : a.power_score,
+    ts: a.ts || (a.timestamp ? a.timestamp / 1000 : null),
+    url: a.url || '',
+    ticker: a.ticker || '',
+    summary: a.summary || '',
+  };
+}
+
+function newsCat(sent) {
+  if (sent > 0.08) return ['bull', 'BULLISH'];
+  if (sent < -0.08) return ['bear', 'BEARISH'];
+  return ['neut', 'NEUTRAL'];
+}
+
+function renderNewsRail() {
+  const el = document.getElementById('newsRailBody');
+  if (!el) return;
+  const articles = newsArticles(State.nrTab || 'power');
+  if (!articles.length) {
+    el.innerHTML = '<div class="nr-loading">No headlines yet — click ⟳ to fetch.</div>';
+    return;
+  }
+  const [feat, ...rest] = articles;
+  const card = (raw, featured) => {
+    const a = newsField(raw);
+    const [cls, label] = newsCat(a.sentiment);
+    const ts = a.ts ? _timeAgo(new Date(a.ts * 1000)) : '';
+    const pw = a.power != null ? `<span class="nr-power">⚡ ${(a.power * 100).toFixed(0)}</span>` : '';
+    const url = a.url ? a.url.replace(/'/g, "\\'") : '';
+    const click = url ? `onclick="window.open('${url}','_blank')"` : (a.ticker ? `onclick="openDrawer('${a.ticker}')"` : '');
+    return `<div class="${featured ? 'nr-feature' : 'nr-item'}" ${click}>
+      <div class="nr-tags">
+        <span class="nr-cat ${cls}">${label}</span>
+        <span class="nr-src">${a.source}</span>
+        ${pw}
+      </div>
+      <div class="nr-title">${a.title}</div>
+      <div class="nr-meta">
+        ${a.ticker ? `<span class="nr-ticker">${a.ticker}</span>` : ''}
+        <span>${ts}</span>
+      </div>
+    </div>`;
+  };
+
+  let html = '';
+  if (feat) {
+    html += `<div class="nr-section">⦿ Breaking</div>`;
+    html += card(feat, true);
+  }
+  if (rest.length) {
+    html += `<div class="nr-section top">Top Stories</div>`;
+    html += rest.slice(0, 14).map(a => card(a, false)).join('');
+  }
+  el.innerHTML = html;
 }
 
 function renderNews() {
-  const tab  = State.newsTab || 'power';
-  const data = State.news?.[tab];
-  const articles = Array.isArray(data) ? data : (data?.articles || []);
+  const articles = newsArticles(State.newsTab || 'power');
   const el = document.getElementById('newsGrid');
   if (!el) return;
   if (!articles.length) {
     el.innerHTML = '<div style="color:var(--text-faint);padding:20px">No articles available — click Sync to fetch.</div>';
     return;
   }
-  el.innerHTML = articles.slice(0, 24).map(a => {
+  el.innerHTML = articles.slice(0, 24).map(raw => {
+    const a = newsField(raw);
     const ts   = a.ts ? new Date(a.ts * 1000) : null;
     const time = ts ? ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
-    const pw   = a.power_score != null ? (a.power_score * 100).toFixed(0) : null;
-    const sent = a.sentiment || 0;
+    const pw   = a.power != null ? (a.power * 100).toFixed(0) : null;
+    const sent = a.sentiment;
     const sentHtml = sent > 0.08
       ? `<span class="news-sent bull">▲ ${(sent*100).toFixed(0)}%</span>`
       : sent < -0.08
@@ -474,10 +560,10 @@ function renderNews() {
     const url = a.url ? a.url.replace(/\\/g,'\\\\').replace(/'/g,"\\'") : '';
     return `<article class="news-card" ${url ? `onclick="window.open('${url}','_blank')" style="cursor:pointer"` : ''}>
       <div class="news-card-head">
-        <span class="news-source">${a.source || 'News'}</span>
+        <span class="news-source">${a.source}</span>
         ${pw ? `<span class="news-power">⚡ ${pw}</span>` : ''}
       </div>
-      <div class="news-title">${a.title || '—'}</div>
+      <div class="news-title">${a.title}</div>
       ${a.summary ? `<div class="news-summary">${a.summary}</div>` : ''}
       <div class="news-foot">
         ${a.ticker ? `<span class="news-ticker">${a.ticker}</span>` : ''}
@@ -935,6 +1021,7 @@ async function doSync() {
   await call('runFlowScan');
   await new Promise(r => setTimeout(r, 1500));
   await loadAll();
+  loadNews();
   btn.querySelector('.rail-ico').style.animation = '';
   toast('Synced', 'All intelligence feeds updated.', 'success');
 }
@@ -1043,20 +1130,20 @@ async function openDrawer(ticker) {
     </div>`;
   }).join('') : '<div style="color:var(--text-faint);font-size:12px">No options setups for this ticker.</div>';
 
-  // News items
-  const newsArr = Array.isArray(news) ? news : [];
-  const newsHtml = newsArr.slice(0, 5).map(a => {
-    const sent = a.sentiment || 0;
-    const sc = sent > 0.08 ? 'var(--green)' : sent < -0.08 ? 'var(--red)' : 'var(--text-faint)';
+  // News items (backend returns { items: [...] })
+  const newsArr = Array.isArray(news) ? news : (news?.items || news?.articles || []);
+  const newsHtml = newsArr.slice(0, 5).map(raw => {
+    const a = newsField(raw);
+    const sc = a.sentiment > 0.08 ? 'var(--green)' : a.sentiment < -0.08 ? 'var(--red)' : 'var(--text-faint)';
     const ts = a.ts ? _timeAgo(new Date(a.ts * 1000)) : '';
     const url = a.url ? a.url.replace(/'/g, "\\'") : '';
     return `<div class="drawer-news-item" ${url ? `onclick="window.open('${url}','_blank')"` : ''}>
       <div class="drawer-news-head">
-        <span class="drawer-news-source">${a.source || 'News'}</span>
+        <span class="drawer-news-source">${a.source}</span>
         <span class="drawer-news-time">${ts}</span>
-        <span style="color:${sc};font-size:10px">${sent > 0.08 ? '▲' : sent < -0.08 ? '▼' : '◆'}</span>
+        <span style="color:${sc};font-size:10px">${a.sentiment > 0.08 ? '▲' : a.sentiment < -0.08 ? '▼' : '◆'}</span>
       </div>
-      <div class="drawer-news-title">${a.title || '—'}</div>
+      <div class="drawer-news-title">${a.title}</div>
     </div>`;
   }).join('') || '<div style="color:var(--text-faint);font-size:12px">No recent news found.</div>';
 
