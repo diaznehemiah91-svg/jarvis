@@ -168,16 +168,17 @@ def _sweep_body(alert: dict) -> str:
 
 
 def get_dca_candidates(regime: dict) -> list[dict]:
-    """Return DCA buy targets when in risk-off mode."""
-    if regime.get("regime") != "risk_off":
-        return []
+    """Return conviction watchlist / DCA targets ranked by sentiment."""
+    mode = regime.get("regime", "risk_on")
 
     dca_targets = {
-        "NVDA": {"name": "NVIDIA", "rationale": "AI GPU monopoly at discount"},
-        "AMD": {"name": "AMD", "rationale": "AI GPU + data center chips"},
-        "TSM": {"name": "TSMC", "rationale": "Only leading-edge foundry globally"},
-        "ANET": {"name": "Arista Networks", "rationale": "AI network switching backbone"},
-        "CEG": {"name": "Constellation Energy", "rationale": "Nuclear baseload for AI data centers"},
+        "NVDA": {"name": "NVIDIA",              "rationale": "AI GPU monopoly — accumulate on dips"},
+        "AMD":  {"name": "AMD",                 "rationale": "AI GPU + data center chips at value"},
+        "TSM":  {"name": "TSMC",                "rationale": "Only leading-edge foundry globally"},
+        "ANET": {"name": "Arista Networks",     "rationale": "AI networking switching backbone"},
+        "CEG":  {"name": "Constellation Energy","rationale": "Nuclear baseload for AI data centers"},
+        "PLTR": {"name": "Palantir",            "rationale": "Government + enterprise AI platform"},
+        "ARM":  {"name": "ARM Holdings",        "rationale": "CPU IP for every AI edge device"},
     }
 
     results = []
@@ -189,5 +190,6 @@ def get_dca_candidates(regime: dict) -> list[dict]:
             "rationale": meta["rationale"],
             "sentiment": sent["combined_score"],
             "sentiment_label": sent["label"],
+            "regime_mode": mode,
         })
     return sorted(results, key=lambda x: x["sentiment"], reverse=True)

@@ -10,6 +10,8 @@ const State = {
   heatmap: null,
   briefing: null,
   news: null,
+  dca: null,
+  rotation: null,
   view: 'overview',
   oppTab: 'buys',
   flowFilter: 'all',
@@ -57,7 +59,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function loadAll() {
-  const [sm, regime, opps, opts, heat, brief, status] = await Promise.all([
+  const [sm, regime, opps, opts, heat, brief, status, dca, rotation] = await Promise.all([
     call('getSectorMap'),
     call('computeRegime'),
     call('getOpportunities', 16),
@@ -65,6 +67,8 @@ async function loadAll() {
     call('getSectorHeatmap'),
     call('getFullBriefing'),
     call('getDataStatus'),
+    call('getDcaCandidates'),
+    call('detectRotation'),
   ]);
   State.sectorMap = sm || {};
   State.regime = regime;
@@ -73,6 +77,8 @@ async function loadAll() {
   State.heatmap = heat;
   State.briefing = brief;
   State.dataStatus = status;
+  State.dca = Array.isArray(dca) ? dca : [];
+  State.rotation = rotation;
 
   renderDataBadge();
   renderTicker();
@@ -80,12 +86,15 @@ async function loadAll() {
   renderStats();
   renderOverviewOpps();
   renderOverviewOpts();
+  renderDcaPanel();
+  renderRotationBanner();
   renderFeed();
   renderMiniHeat();
   if (globeInitialized) renderGlobe(State.layerFilter);
   renderOpportunities();
   renderOptions();
   renderFlow();
+  renderFlowStats();
 }
 
 // ════ CLOCK & MARKET STATUS ═════════════════════════════════════════════════
@@ -250,6 +259,46 @@ function renderOverviewOpts() {
   }).join('') || '<div style="color:var(--text-faint)">No options ideas yet.</div>';
 }
 
+// ════ DCA WATCHLIST PANEL ════════════════════════════════════════════════════
+function renderDcaPanel() {
+  const el = document.getElementById('dcaStrip');
+  const tag = document.getElementById('dcaRegimeTag');
+  if (!el) return;
+  const list = State.dca || [];
+  const mode = list[0]?.regime_mode || (State.regime?.regime || 'risk_on');
+  const modeColor = mode === 'risk_on' ? 'var(--green)' : mode === 'risk_off' ? 'var(--red)' : 'var(--gold)';
+  const modeLabel = mode === 'risk_on' ? 'RISK-ON' : mode === 'risk_off' ? 'RISK-OFF · DCA MODE' : 'DEFENSIVE';
+  if (tag) { tag.textContent = modeLabel; tag.style.color = modeColor; tag.style.borderColor = modeColor + '44'; }
+  if (!list.length) {
+    el.innerHTML = '<div style="color:var(--text-faint);padding:12px 0">No watchlist data — sync first.</div>';
+    return;
+  }
+  el.innerHTML = list.slice(0, 7).map(d => {
+    const col = d.sentiment >= 0.08 ? 'var(--green)' : d.sentiment <= -0.08 ? 'var(--red)' : 'var(--gold)';
+    const bar = Math.min(100, Math.abs(d.sentiment) * 200);
+    return `<div class="dca-card" onclick="openDrawer('${d.ticker}')">
+      <div class="dca-top">
+        <span class="dca-sym" style="color:${col}">${d.ticker}</span>
+        <span class="dca-sent" style="color:${col}">${d.sentiment_label}</span>
+      </div>
+      <div class="dca-name">${d.name}</div>
+      <div class="dca-rationale">${d.rationale}</div>
+      <div class="dca-bar"><i style="width:${bar}%;background:${col}"></i></div>
+    </div>`;
+  }).join('');
+}
+
+// ════ ROTATION BANNER ════════════════════════════════════════════════════════
+function renderRotationBanner() {
+  const r = State.rotation;
+  const el = document.getElementById('rotationBanner');
+  if (!el) return;
+  if (!r?.rotation_signal) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  el.querySelector('.rot-text').textContent =
+    `${r.narrative}  ·  AI HW ${fmt(r.ai_hardware_bias, 2)}  ▸  INFRA ${fmt(r.infrastructure_bias, 2)}  [Δ ${fmt(r.divergence, 3)}]`;
+}
+
 // ════ FEED ══════════════════════════════════════════════════════════════════
 function renderFeed() {
   const alerts = State.briefing?.alerts || [];
@@ -388,23 +437,48 @@ function renderHeatmap() {
 // ════ OPPORTUNITIES VIEW ════════════════════════════════════════════════════
 function renderOpportunities() {
   const list = State.opportunities?.[State.oppTab] || [];
-  document.getElementById('oppTable').innerHTML = list.map(o => `
+  const isBull = State.oppTab === 'buys';
+
+  // Count header
+  const total = list.length;
+  const strong = list.filter(o => /STRONG/.test(o.action)).length;
+
+  document.getElementById('oppTable').innerHTML = (total ? `
+    <div class="opp-header-stats">
+      <span class="opp-hs-count">${total} ${isBull ? '▲ LONG' : '▼ SHORT'} signals</span>
+      ${strong ? `<span class="opp-hs-strong">${strong} STRONG conviction</span>` : ''}
+      <span class="opp-hs-avg">Avg ${Math.round(list.reduce((s,o)=>s+o.conviction,0)/list.length)}% conviction</span>
+    </div>` : '') +
+  list.map(o => {
+    const col = actionColor(o.action);
+    const rr = o.risk_reward;
+    const rrColor = rr >= 3 ? 'var(--green)' : rr >= 2 ? 'var(--gold)' : 'var(--text-dim)';
+    const signalBadges = (o.signals || []).slice(0, 4).map(s =>
+      `<span class="signal-badge">${s}</span>`
+    ).join('');
+    const convPct = o.conviction || 0;
+    const convColor = convPct >= 70 ? 'var(--green)' : convPct >= 50 ? 'var(--gold)' : 'var(--text-dim)';
+    return `
     <div class="opp-row" onclick="openDrawer('${o.ticker}')">
-      <div>
-        <div class="opp-row-sym">${o.ticker}</div>
-      </div>
-      <div>
-        <span class="opp-badge" style="color:${actionColor(o.action)};background:${actionBg(o.action)}">${o.action}</span>
-      </div>
-      <div>
+      <div class="opp-row-left">
+        <div class="opp-row-sym" style="color:${col}">${o.ticker}</div>
         <div class="opp-row-sector">${o.sector || '—'}</div>
-        <div class="opp-signals">${(o.signals || []).slice(0, 2).join(' · ')}</div>
       </div>
-      <div class="opp-metric"><div class="opp-metric-lbl">ENTRY</div><div class="opp-metric-val">${usd(o.entry)}</div></div>
-      <div class="opp-metric"><div class="opp-metric-lbl">TARGET</div><div class="opp-metric-val" style="color:var(--green)">${usd(o.target)}</div></div>
-      <div class="opp-metric"><div class="opp-metric-lbl">STOP</div><div class="opp-metric-val" style="color:var(--red)">${usd(o.stop)}</div></div>
-      <div class="opp-conv-circle">${convCircle(o.conviction, actionColor(o.action))}</div>
-    </div>`).join('') || '<div style="color:var(--text-faint);padding:20px">No opportunities in this direction.</div>';
+      <div class="opp-row-action">
+        <span class="opp-badge" style="color:${col};background:${actionBg(o.action)}">${o.action}</span>
+        ${signalBadges ? `<div class="opp-signal-badges">${signalBadges}</div>` : ''}
+      </div>
+      <div class="opp-row-levels">
+        <div class="opp-metric"><div class="opp-metric-lbl">ENTRY</div><div class="opp-metric-val">${usd(o.entry || o.price)}</div></div>
+        <div class="opp-metric"><div class="opp-metric-lbl">TARGET</div><div class="opp-metric-val" style="color:var(--green)">${usd(o.target)}</div></div>
+        <div class="opp-metric"><div class="opp-metric-lbl">STOP</div><div class="opp-metric-val" style="color:var(--red)">${usd(o.stop)}</div></div>
+        ${rr != null ? `<div class="opp-metric"><div class="opp-metric-lbl">R/R</div><div class="opp-metric-val" style="color:${rrColor}">${Number(rr).toFixed(1)}:1</div></div>` : ''}
+      </div>
+      <div class="opp-conv-col">
+        ${convCircle(convPct, convColor)}
+      </div>
+    </div>`;
+  }).join('') || '<div style="color:var(--text-faint);padding:20px">No opportunities in this direction.</div>';
 }
 
 function convCircle(pct, color) {
@@ -458,59 +532,146 @@ function renderOptions() {
   }).join('') || '<div style="color:var(--text-faint);padding:20px">No options ideas in this direction.</div>';
 }
 
+// ════ FLOW STATS HEADER ══════════════════════════════════════════════════════
+function renderFlowStats() {
+  const el = document.getElementById('flowStatsBar');
+  if (!el) return;
+  const alerts = (State.briefing?.alerts || []).filter(a =>
+    ['WHALE_BLOCK', 'OPTIONS_SWEEP', 'INSIDER_FLOW'].includes(a.type)
+  );
+  if (!alerts.length) { el.innerHTML = ''; return; }
+
+  let bullNotional = 0, bearNotional = 0;
+  let whaleCount = 0, sweepCount = 0, insiderCount = 0;
+  alerts.forEach(a => {
+    const n = a.data?.size_usd || 0;
+    if ((a.data?.direction || 'bullish') === 'bullish') bullNotional += n; else bearNotional += n;
+    if (a.type === 'WHALE_BLOCK') whaleCount++;
+    else if (a.type === 'OPTIONS_SWEEP') sweepCount++;
+    else if (a.type === 'INSIDER_FLOW') insiderCount++;
+  });
+  const total = bullNotional + bearNotional;
+  const bullPct = total > 0 ? Math.round(bullNotional / total * 100) : 50;
+  const bearPct = 100 - bullPct;
+
+  el.innerHTML = `
+    <div class="flow-stat"><span class="flow-stat-lbl">TOTAL FLOW</span><span class="flow-stat-val">${alerts.length} alerts</span></div>
+    <div class="flow-stat"><span class="flow-stat-lbl bullish-lbl">BULL NOTIONAL</span><span class="flow-stat-val bullish-val">${fmtM(bullNotional)}</span></div>
+    <div class="flow-stat"><span class="flow-stat-lbl bearish-lbl">BEAR NOTIONAL</span><span class="flow-stat-val bearish-val">${fmtM(bearNotional)}</span></div>
+    <div class="flow-stat-divider"></div>
+    <div class="flow-stat"><span class="flow-stat-lbl">WHALE BLOCKS</span><span class="flow-stat-val">${whaleCount}</span></div>
+    <div class="flow-stat"><span class="flow-stat-lbl">OPT SWEEPS</span><span class="flow-stat-val">${sweepCount}</span></div>
+    <div class="flow-stat"><span class="flow-stat-lbl">INSIDER</span><span class="flow-stat-val">${insiderCount}</span></div>
+    <div class="flow-stat-divider"></div>
+    <div class="flow-bias-bar-wrap">
+      <span class="flow-bias-lbl bull">${bullPct}% BULL</span>
+      <div class="flow-bias-bar">
+        <i class="bull" style="width:${bullPct}%"></i>
+        <i class="bear" style="width:${bearPct}%"></i>
+      </div>
+      <span class="flow-bias-lbl bear">${bearPct}% BEAR</span>
+    </div>`;
+}
+
+function fmtM(v) {
+  if (!v) return '$0';
+  if (v >= 1e9) return '$' + (v / 1e9).toFixed(1) + 'B';
+  if (v >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+  return '$' + (v / 1e3).toFixed(0) + 'K';
+}
+
 // ════ FLOW VIEW ═════════════════════════════════════════════════════════════
 function renderFlow() {
-  const alerts = (State.briefing?.alerts || []).filter(a => {
-    if (State.flowFilter === 'all') return ['WHALE_BLOCK', 'OPTIONS_SWEEP', 'INSIDER_FLOW'].includes(a.type);
+  const all = (State.briefing?.alerts || []).filter(a =>
+    ['WHALE_BLOCK', 'OPTIONS_SWEEP', 'INSIDER_FLOW', 'SENTIMENT_SPIKE'].includes(a.type)
+  );
+  const alerts = all.filter(a => {
+    if (State.flowFilter === 'all') return true;
     if (State.flowFilter === 'whale_block') return a.type === 'WHALE_BLOCK';
     if (State.flowFilter === 'options_sweep') return a.type === 'OPTIONS_SWEEP';
     if (State.flowFilter === 'insider_flow') return a.type === 'INSIDER_FLOW';
     return false;
   });
+
+  const typeIcons = {
+    WHALE_BLOCK: '🐋',
+    OPTIONS_SWEEP: '⚡',
+    INSIDER_FLOW: '👁',
+    SENTIMENT_SPIKE: '🔥',
+  };
+
   document.getElementById('flowList').innerHTML = alerts.map(a => {
     const d = a.data || {};
     const det = d.details || {};
     const dir = d.direction || 'bullish';
     const col = dir === 'bullish' ? 'var(--green)' : 'var(--red)';
+    const colBg = dir === 'bullish' ? 'rgba(31,224,160,0.06)' : 'rgba(255,84,112,0.06)';
     const typeLabel = a.type.replace(/_/g, ' ');
+    const typeIco = typeIcons[a.type] || '◈';
+    const ts = a.timestamp ? new Date(a.timestamp) : null;
+    const timeAgo = ts ? _timeAgo(ts) : '';
 
-    // Build a detail chip row from whatever metadata the alert carries.
+    // Detail chips
     const chips = [];
-    if (det.volume_ratio != null) chips.push(`<span class="flow-chip">VOL ${det.volume_ratio}×</span>`);
-    if (det.intraday_range_pct != null) chips.push(`<span class="flow-chip">RANGE ${det.intraday_range_pct}%</span>`);
-    if (det.price_change_pct != null) chips.push(`<span class="flow-chip">Δ ${det.price_change_pct}%</span>`);
-    if (det.strike != null) chips.push(`<span class="flow-chip">STRIKE $${det.strike}</span>`);
-    if (det.expiry) chips.push(`<span class="flow-chip">EXP ${det.expiry}</span>`);
-    if (det.option_type) chips.push(`<span class="flow-chip">${String(det.option_type).toUpperCase()}</span>`);
-    if (det.open_interest != null) chips.push(`<span class="flow-chip">OI ${Number(det.open_interest).toLocaleString()}</span>`);
-    if (det.net_shares != null) chips.push(`<span class="flow-chip">NET ${Number(det.net_shares).toLocaleString()} sh</span>`);
-    if (det.transactions != null) chips.push(`<span class="flow-chip">${det.transactions} txns</span>`);
-    if (det.trade_date) chips.push(`<span class="flow-chip">${det.trade_date}</span>`);
+    if (det.volume_ratio != null)      chips.push({ lbl: 'VOL',    val: det.volume_ratio + '×',    hi: det.volume_ratio > 5 });
+    if (det.intraday_range_pct != null) chips.push({ lbl: 'RANGE',  val: det.intraday_range_pct + '%' });
+    if (det.price_change_pct != null)  chips.push({ lbl: 'Δ PRICE', val: det.price_change_pct + '%', hi: Math.abs(det.price_change_pct) > 3 });
+    if (det.strike != null)            chips.push({ lbl: 'STRIKE',  val: '$' + det.strike });
+    if (det.expiry)                    chips.push({ lbl: 'EXP',     val: det.expiry });
+    if (det.option_type)               chips.push({ lbl: 'TYPE',    val: String(det.option_type).toUpperCase() });
+    if (det.open_interest != null)     chips.push({ lbl: 'OI',      val: Number(det.open_interest).toLocaleString() });
+    if (det.net_shares != null)        chips.push({ lbl: 'NET SH',  val: Number(det.net_shares).toLocaleString(), hi: Math.abs(det.net_shares) > 100000 });
+    if (det.transactions != null)      chips.push({ lbl: 'TXNS',    val: det.transactions });
+    if (det.trade_date)                chips.push({ lbl: 'DATE',    val: det.trade_date });
 
-    // Supply-chain ripple (whale blocks carry it)
-    const ripple = (d.ripple?.ripple_effects || []).slice(0, 3)
-      .map(r => `<span class="flow-ripple-tag">${r.sector_name}</span>`).join('');
+    const chipsHtml = chips.map(c =>
+      `<span class="flow-chip${c.hi ? ' hi' : ''}">${c.lbl} <b>${c.val}</b></span>`
+    ).join('');
 
-    return `<div class="flow-card ${dir}" ${d.ticker ? `onclick="openDrawer('${d.ticker}')"` : ''}>
+    // Ripple
+    const ripple = (d.ripple?.ripple_effects || []).slice(0, 4)
+      .map(r => `<span class="flow-ripple-tag" title="${r.tickers?.join(', ')}">${r.sector_name}</span>`).join('');
+
+    // Notional bar (relative visual fill)
+    const maxNotional = 100_000_000;
+    const notionalPct = Math.min(100, ((d.size_usd || 0) / maxNotional) * 100);
+
+    return `<div class="flow-card ${dir}" style="border-left-color:${col};background:${colBg}" ${d.ticker ? `onclick="openDrawer('${d.ticker}')"` : ''}>
       <div class="flow-card-main">
-        <div class="flow-sym" style="color:${col}">
-          ${d.ticker || '—'}
-          <span class="flow-dir-arrow">${dir === 'bullish' ? '▲' : '▼'}</span>
+
+        <div class="flow-sym-col">
+          <div class="flow-sym" style="color:${col}">${d.ticker || '—'}</div>
+          <div class="flow-type-badge">${typeIco} ${typeLabel}</div>
+          <div class="flow-time-ago">${timeAgo}</div>
         </div>
+
         <div class="flow-info">
-          <div class="flow-info-type">${a.title}</div>
+          <div class="flow-info-title">
+            <span class="flow-dir-arrow" style="color:${col}">${dir === 'bullish' ? '▲' : '▼'}</span>
+            ${a.title}
+          </div>
           <div class="flow-info-body">${a.body}</div>
-          ${chips.length ? `<div class="flow-chips">${chips.join('')}</div>` : ''}
+          ${chipsHtml ? `<div class="flow-chips">${chipsHtml}</div>` : ''}
           ${ripple ? `<div class="flow-ripple"><span class="flow-ripple-lbl">RIPPLE →</span>${ripple}</div>` : ''}
         </div>
+
         <div class="flow-right">
           <div class="flow-prio prio-${a.priority}">${a.priority}</div>
-          <div class="flow-notional">${usd(d.size_usd)}</div>
-          <div class="flow-notional-lbl">${typeLabel}</div>
+          <div class="flow-notional" style="color:${col}">${fmtM(d.size_usd)}</div>
+          <div class="flow-notional-bar"><i style="width:${notionalPct}%;background:${col}"></i></div>
         </div>
+
       </div>
     </div>`;
-  }).join('') || '<div style="color:var(--text-faint);padding:20px">No institutional flow detected. Run a sync to scan.</div>';
+  }).join('') || '<div class="flow-empty">No institutional flow detected. Run a sync to scan.</div>';
+}
+
+function _timeAgo(date) {
+  const secs = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (secs < 60) return `${secs}s ago`;
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+  return `${Math.floor(secs / 86400)}d ago`;
 }
 
 // ════ DATA SOURCE BADGE ═════════════════════════════════════════════════════
@@ -622,17 +783,25 @@ async function doSync() {
 }
 
 function speakBriefing() {
-  const r = State.regime, o = State.opportunities;
+  const r = State.regime, o = State.opportunities, opts = State.options;
   if (!r) { Voice.speak('Data not ready yet.'); return; }
-  const top = o?.buys?.[0];
+  const topBuy = o?.buys?.[0];
+  const topSell = o?.sells?.[0];
+  const topOpt = opts?.ideas?.[0];
+  const rotNote = State.rotation?.rotation_signal
+    ? 'Sector rotation detected: capital moving from A-I hardware to infrastructure. '
+    : '';
   const txt = `Market briefing. The current regime is ${r.regime_label.split('/')[0].trim()}, `
-    + `with a composite score of ${r.regime_score.toFixed(2)} and the VIX at ${r.vix_level.toFixed(0)}. `
-    + `${o?.buys?.length || 0} long and ${o?.sells?.length || 0} short opportunities are flagged. `
-    + (top ? `Highest conviction is ${top.action} on ${top.ticker} at ${top.conviction} percent. ` : '')
+    + `composite score ${r.regime_score.toFixed(2)}, VIX at ${r.vix_level.toFixed(0)}. `
+    + rotNote
+    + `${o?.buys?.length || 0} long and ${o?.sells?.length || 0} short opportunities flagged. `
+    + (topBuy ? `Top long: ${topBuy.action} on ${topBuy.ticker} at ${topBuy.conviction} percent conviction. ` : '')
+    + (topSell ? `Top short: ${topSell.ticker} at ${topSell.conviction} percent. ` : '')
+    + (topOpt ? `Options: ${topOpt.strategy} on ${topOpt.ticker}. ` : '')
     + `${r.actions?.[0] || ''}`;
   Voice.setHud(true, 'Delivering briefing…');
   Voice.speak(txt);
-  setTimeout(() => Voice.setHud(false), 4000);
+  setTimeout(() => Voice.setHud(false), 5000);
 }
 
 // ════ VOICE COMMANDS ════════════════════════════════════════════════════════
@@ -648,16 +817,26 @@ function handleVoiceCommand(text) {
   setTimeout(() => Voice.setHud(false), 2500);
 
   // Navigation
-  if (/(heat ?map|sector)/.test(t)) { switchView('heatmap'); return Voice.speak('Opening sector heat maps.'); }
-  if (/(option)/.test(t)) { switchView('options'); return Voice.speak('Showing options ideas.'); }
+  if (/(heat ?map|sector|globe)/.test(t)) { switchView('heatmap'); return Voice.speak('Opening global sector map.'); }
+  if (/(option)/.test(t)) { switchView('options'); return Voice.speak('Showing options ideas, bull and bear.'); }
   if (/(opportunit|idea|buy|sell|long|short)/.test(t) && !/regime/.test(t)) { switchView('opportunities'); return Voice.speak('Here are the opportunities.'); }
-  if (/(flow|whale|sweep|institution)/.test(t)) { switchView('flow'); return Voice.speak('Showing institutional flow.'); }
+  if (/(flow|whale|sweep|institution|insider)/.test(t)) { switchView('flow'); return Voice.speak('Showing institutional flow.'); }
+  if (/(news|headline|intel)/.test(t)) { switchView('news'); return Voice.speak('Loading market intelligence.'); }
   if (/(overview|home|dashboard)/.test(t)) { switchView('overview'); return Voice.speak('Back to overview.'); }
   if (/(brief|summary|report|update)/.test(t)) { return speakBriefing(); }
   if (/(sync|refresh|scan|update data)/.test(t)) { return doSync(); }
+  if (/rotation/.test(t)) {
+    const rot = State.rotation;
+    if (!rot) return Voice.speak('Rotation data not ready.');
+    return Voice.speak(rot.rotation_signal ? rot.narrative : 'No rotation detected. Market in equilibrium.');
+  }
   if (/regime/.test(t)) {
     const r = State.regime;
     return Voice.speak(r ? `The market regime is ${r.regime_label.split('/')[0].trim()}, score ${r.regime_score.toFixed(2)}.` : 'Regime not ready.');
+  }
+  if (/(dca|watchlist|accumulate)/.test(t)) {
+    const top = (State.dca || [])[0];
+    return Voice.speak(top ? `Top DCA target: ${top.ticker}, ${top.name}. ${top.rationale}` : 'No DCA candidates available.');
   }
 
   // Ticker lookup
@@ -671,26 +850,65 @@ function handleVoiceCommand(text) {
 
 // ════ DETAIL DRAWER ═════════════════════════════════════════════════════════
 async function openDrawer(ticker) {
-  const [assess, ripple] = await Promise.all([
+  document.getElementById('drawerOverlay').classList.add('open');
+  document.getElementById('drawerBody').innerHTML = `<div class="drawer-loading">Loading ${ticker}…</div>`;
+
+  const [assess, ripple, news] = await Promise.all([
     call('getTickerAssessment', ticker),
     call('getFlowRipple', ticker),
+    call('getCompanyNews', ticker, 6),
   ]);
-  if (!assess) return;
+  if (!assess) {
+    document.getElementById('drawerBody').innerHTML = `<div style="color:var(--text-faint);padding:20px">No data for ${ticker}.</div>`;
+    return;
+  }
   const c = assess.components || {};
+  const col = actionColor(assess.action);
+
   const compBar = (lbl, v) => {
-    const col = scoreColor(v), w = Math.abs(v) * 50, left = v >= 0 ? 50 : 50 - w;
+    const sc = scoreColor(v), w = Math.abs(v) * 50, left = v >= 0 ? 50 : 50 - w;
     return `<div class="drawer-comp">
       <span class="drawer-comp-lbl">${lbl}</span>
-      <span class="drawer-comp-bar"><i style="left:${left}%;width:${w}%;background:${col}"></i></span>
-      <span class="drawer-comp-val" style="color:${col}">${fmt(v, 2)}</span>
+      <span class="drawer-comp-bar"><i style="left:${left}%;width:${w}%;background:${sc}"></i></span>
+      <span class="drawer-comp-val" style="color:${sc}">${fmt(v, 2)}</span>
     </div>`;
   };
+
+  // Options ideas for this ticker
+  const tickerOpts = (State.options?.ideas || []).filter(i => i.ticker === ticker);
+  const optsHtml = tickerOpts.length ? tickerOpts.map(i => {
+    const oc = i.direction === 'bullish' ? 'var(--green)' : 'var(--red)';
+    return `<div class="drawer-opt-row">
+      <span class="opt-dir-badge" style="color:${oc};border-color:${oc}44;font-size:10px;padding:2px 6px">${i.direction === 'bullish' ? '▲' : '▼'}</span>
+      <span style="color:${oc};font-weight:600;font-size:12px">${i.strategy}</span>
+      <span style="color:var(--text-dim);font-family:var(--font-mono);font-size:11px">${i.contract}</span>
+      <span style="color:var(--cyan);font-family:var(--font-mono);font-size:11px">BE $${i.breakeven ?? '—'}</span>
+    </div>`;
+  }).join('') : '<div style="color:var(--text-faint);font-size:12px">No options setups for this ticker.</div>';
+
+  // News items
+  const newsArr = Array.isArray(news) ? news : [];
+  const newsHtml = newsArr.slice(0, 5).map(a => {
+    const sent = a.sentiment || 0;
+    const sc = sent > 0.08 ? 'var(--green)' : sent < -0.08 ? 'var(--red)' : 'var(--text-faint)';
+    const ts = a.ts ? _timeAgo(new Date(a.ts * 1000)) : '';
+    const url = a.url ? a.url.replace(/'/g, "\\'") : '';
+    return `<div class="drawer-news-item" ${url ? `onclick="window.open('${url}','_blank')"` : ''}>
+      <div class="drawer-news-head">
+        <span class="drawer-news-source">${a.source || 'News'}</span>
+        <span class="drawer-news-time">${ts}</span>
+        <span style="color:${sc};font-size:10px">${sent > 0.08 ? '▲' : sent < -0.08 ? '▼' : '◆'}</span>
+      </div>
+      <div class="drawer-news-title">${a.title || '—'}</div>
+    </div>`;
+  }).join('') || '<div style="color:var(--text-faint);font-size:12px">No recent news found.</div>';
+
   document.getElementById('drawerBody').innerHTML = `
-    <div class="drawer-sym" style="color:${actionColor(assess.action)}">${assess.ticker}</div>
+    <div class="drawer-sym" style="color:${col}">${assess.ticker}</div>
     <div class="drawer-sector">${assess.sector || ''}</div>
 
     <div class="drawer-section">
-      <span class="opp-badge" style="color:${actionColor(assess.action)};background:${actionBg(assess.action)};font-size:14px;padding:8px 16px">
+      <span class="opp-badge" style="color:${col};background:${actionBg(assess.action)};font-size:14px;padding:8px 16px">
         ${assess.action} · ${assess.conviction}% conviction
       </span>
     </div>
@@ -702,7 +920,7 @@ async function openDrawer(ticker) {
         <div class="drawer-level"><div class="drawer-level-lbl">TARGET</div><div class="drawer-level-val" style="color:var(--green)">${usd(assess.target)}</div></div>
         <div class="drawer-level"><div class="drawer-level-lbl">STOP</div><div class="drawer-level-val" style="color:var(--red)">${usd(assess.stop)}</div></div>
       </div>
-      ${assess.risk_reward ? `<div style="text-align:center;margin-top:10px;color:var(--text-dim);font-family:var(--font-mono)">Risk / Reward &nbsp; <b style="color:var(--cyan)">${assess.risk_reward} : 1</b></div>` : ''}
+      ${assess.risk_reward != null ? `<div style="text-align:center;margin-top:10px;color:var(--text-dim);font-family:var(--font-mono)">Risk / Reward &nbsp; <b style="color:var(--cyan)">${assess.risk_reward} : 1</b></div>` : ''}
     </div>
 
     <div class="drawer-section">
@@ -715,7 +933,14 @@ async function openDrawer(ticker) {
 
     <div class="drawer-section">
       <h4>ACTIVE SIGNALS</h4>
-      ${(assess.signals || []).map(s => `<div class="regime-action"><b>▸</b> ${s}</div>`).join('')}
+      <div class="drawer-signals">
+        ${(assess.signals || []).map(s => `<span class="signal-badge">${s}</span>`).join('') || '<span style="color:var(--text-faint)">No signals.</span>'}
+      </div>
+    </div>
+
+    <div class="drawer-section">
+      <h4>OPTIONS SETUPS</h4>
+      <div class="drawer-opts">${optsHtml}</div>
     </div>
 
     <div class="drawer-section">
@@ -727,8 +952,12 @@ async function openDrawer(ticker) {
             <div class="ripple-node-tickers">${r.tickers.join(' · ')}</div>
           </div>`).join('') || '<div style="color:var(--text-faint)">No downstream mapping.</div>'}
       </div>
+    </div>
+
+    <div class="drawer-section">
+      <h4>RECENT NEWS</h4>
+      <div class="drawer-news">${newsHtml}</div>
     </div>`;
-  document.getElementById('drawerOverlay').classList.add('open');
 }
 
 function closeDrawer() { document.getElementById('drawerOverlay').classList.remove('open'); }
@@ -797,7 +1026,7 @@ function initKeyboard() {
     if (document.activeElement.tagName === 'INPUT') return;
     if (e.key === 'Escape') { closeDrawer(); Voice.setHud(false); }
     if (e.key === '/') { e.preventDefault(); openPalette(); }
-    const map = { '1': 'overview', '2': 'heatmap', '3': 'opportunities', '4': 'options', '5': 'flow' };
+    const map = { '1': 'overview', '2': 'heatmap', '3': 'opportunities', '4': 'options', '5': 'flow', '6': 'news' };
     if (map[e.key]) switchView(map[e.key]);
     if (e.key.toLowerCase() === 'v') Voice.startListening(handleVoiceCommand);
     if (e.key.toLowerCase() === 'b') speakBriefing();

@@ -93,6 +93,13 @@
 
   <!-- ── OVERVIEW ──────────────────────────────────────────────────── -->
   <section class="view active" id="view-overview">
+    <!-- Sector rotation alert banner -->
+    <div class="rotation-banner" id="rotationBanner" style="display:none">
+      <span class="rot-icon">⟳</span>
+      <span class="rot-text"></span>
+      <button class="rot-dismiss" onclick="document.getElementById('rotationBanner').style.display='none'">✕</button>
+    </div>
+
     <div class="view-grid overview-grid">
 
       <!-- Regime hero -->
@@ -161,6 +168,15 @@
           <button class="ghost-btn" data-goto="heatmap">Expand →</button>
         </div>
         <div class="mini-heat" id="ovMiniHeat"></div>
+      </div>
+
+      <!-- DCA Watchlist -->
+      <div class="card glass span-2" id="ovDca">
+        <div class="card-head">
+          <span class="card-title">CONVICTION WATCHLIST · DCA TARGETS</span>
+          <span class="card-eyebrow" id="dcaRegimeTag" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid rgba(0,212,255,0.2)">REGIME</span>
+        </div>
+        <div class="dca-strip" id="dcaStrip"></div>
       </div>
 
     </div>
@@ -246,6 +262,8 @@
         <button class="chip" data-flow="insider_flow">Insider</button>
       </div>
     </div>
+    <!-- Flow stats header -->
+    <div class="flow-stats-bar" id="flowStatsBar"></div>
     <div class="flow-list" id="flowList"></div>
   </section>
 
