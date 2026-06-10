@@ -1588,3 +1588,146 @@ kbd {
   .gh-controls { bottom: auto; top: 64px; right: 12px; flex-direction: column; }
   .gh-ctrl span { display: none; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   GLOW ARCHITECTURE — New accent vars
+   ════════════════════════════════════════════════════════════════════ */
+:root {
+  --bull-glow:  #00E676;
+  --bear-glow:  #FF5252;
+  --cyber:      #00E5FF;
+  --glow-bull:  0 0 18px rgba(0,230,118,0.45);
+  --glow-bear:  0 0 18px rgba(255,82,82,0.45);
+  --glow-cyber: 0 0 18px rgba(0,229,255,0.45);
+}
+
+/* ── Market phase pill ──────────────────────────────────────────────── */
+.market-status.pre {
+  background: rgba(255,200,87,0.08); border-color: rgba(255,200,87,0.28); color: var(--gold);
+}
+.market-status.post {
+  background: rgba(255,159,69,0.08); border-color: rgba(255,159,69,0.28); color: var(--orange);
+}
+.market-phase {
+  display: flex; align-items: center;
+  padding: 4px 10px; border-radius: 100px;
+  border: 1px solid rgba(0,229,255,0.2);
+  background: rgba(0,229,255,0.05);
+}
+.market-phase .phase-label {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.5px; color: var(--cyber);
+}
+.market-phase.phase-open .phase-label { color: var(--bull-glow); }
+.market-phase.phase-closed .phase-label { color: var(--text-faint); }
+.market-phase.phase-pre .phase-label { color: var(--gold); }
+.market-phase.phase-post .phase-label { color: var(--orange); }
+
+/* ── Heartbeat indicator ────────────────────────────────────────────── */
+.heartbeat {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 100px;
+  border: 1px solid rgba(0,230,118,0.22);
+  background: rgba(0,230,118,0.06);
+}
+.hb-label {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.5px; color: var(--bull-glow);
+}
+.hb-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--bull-glow);
+  box-shadow: 0 0 8px rgba(0,230,118,0.7);
+  animation: hbPulse 1.2s ease-in-out infinite;
+}
+@keyframes hbPulse {
+  0%,100% { transform: scale(1);   opacity: 1; }
+  50%      { transform: scale(1.4); opacity: 0.55; }
+}
+
+/* ── Opportunity row slide-in ───────────────────────────────────────── */
+@keyframes slideInRow {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.opp-row {
+  animation: slideInRow 0.22s ease-out both;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   MICROSTRUCTURE — CVD + OBI in drawer
+   ════════════════════════════════════════════════════════════════════ */
+.tier2-micro {
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--stroke);
+}
+.micro-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+}
+.micro-block {
+  display: flex; flex-direction: column; gap: 7px;
+}
+.micro-label {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.5px;
+  color: var(--cyber); text-transform: uppercase;
+}
+.cvd-canvas {
+  width: 100%; height: 80px; border-radius: 6px;
+  background: rgba(0,229,255,0.04); border: 1px solid rgba(0,229,255,0.10);
+}
+.obi-wrap { display: flex; flex-direction: column; gap: 5px; }
+.obi-bar {
+  display: flex; height: 14px; border-radius: 7px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.obi-bid {
+  background: var(--bull-glow);
+  box-shadow: var(--glow-bull);
+  transition: width 0.35s ease;
+}
+.obi-ask {
+  background: var(--bear-glow);
+  box-shadow: var(--glow-bear);
+  transition: width 0.35s ease;
+}
+.obi-labels {
+  display: flex; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.5px;
+}
+.obi-lbl-bid { color: var(--bull-glow); }
+.obi-lbl-ask { color: var(--bear-glow); }
+
+/* ════════════════════════════════════════════════════════════════════
+   SQUAWK BOX toggle in settings
+   ════════════════════════════════════════════════════════════════════ */
+.squawk-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 0 6px;
+}
+.squawk-label {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 1.5px; color: var(--text-dim);
+  min-width: 96px;
+}
+.squawk-toggle { position: relative; display: inline-block; width: 42px; height: 22px; }
+.squawk-toggle input { opacity: 0; width: 0; height: 0; }
+.squawk-slider {
+  position: absolute; cursor: pointer; inset: 0;
+  background: rgba(255,255,255,0.08); border: 1px solid var(--stroke);
+  border-radius: 22px; transition: background .2s;
+}
+.squawk-slider::before {
+  content: ''; position: absolute; height: 16px; width: 16px;
+  left: 2px; top: 2px; border-radius: 50%; background: var(--text-dim);
+  transition: transform .2s, background .2s;
+}
+.squawk-toggle input:checked + .squawk-slider {
+  background: rgba(0,230,118,0.18); border-color: rgba(0,230,118,0.4);
+}
+.squawk-toggle input:checked + .squawk-slider::before {
+  transform: translateX(20px); background: var(--bull-glow);
+  box-shadow: 0 0 10px rgba(0,230,118,0.6);
+}
+.squawk-state {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  color: var(--text-dim);
+}
+.squawk-toggle input:checked ~ .squawk-state,
+.squawk-row:has(input:checked) .squawk-state { color: var(--bull-glow); }

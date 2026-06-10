@@ -32,8 +32,14 @@
     <div class="market-status" id="marketStatus">
       <span class="dot"></span><span id="marketStatusText">MARKET</span>
     </div>
+    <div class="market-phase" id="marketPhase">
+      <span class="phase-label" id="marketPhaseLabel">—</span>
+    </div>
     <div class="data-badge sim" id="dataBadge" title="Data source">
       <span class="data-dot"></span><span id="dataBadgeText">SIM</span>
+    </div>
+    <div class="heartbeat" id="heartbeat" title="Engine running">
+      <span class="hb-dot"></span><span class="hb-label">ENGINE RUNNING</span>
     </div>
   </div>
 
@@ -423,6 +429,25 @@
       Tracked handles: <code>@DeItaone</code> <code>@FirstSquawk</code> <code>@Reuters</code> <code>@realDonaldTrump</code>.
       Stored locally in <code>jarvis.db</code>; also settable via the <code>X_BEARER_TOKEN</code> env var.
     </div>
+
+    <!-- ── Squawk Box toggle ─────────────────────────────────────────── -->
+    <div class="settings-divider"></div>
+
+    <div class="settings-head" style="margin-bottom:4px">
+      <div class="card-eyebrow">AUDIO ALERTS · SQUAWK BOX</div>
+      <h3 style="font-size:15px">Tactical Audio Announcements</h3>
+      <p class="settings-sub">Enables synthesized chime + voice announcement for STRONG BUY signals
+        and breaking power headlines. Uses Web Audio API &amp; Web Speech API — no account required.</p>
+    </div>
+
+    <div class="squawk-row">
+      <span class="squawk-label">SQUAWK BOX</span>
+      <label class="squawk-toggle" id="squawkToggleWrap">
+        <input type="checkbox" id="squawkToggle" />
+        <span class="squawk-slider"></span>
+      </label>
+      <span class="squawk-state" id="squawkState">—</span>
+    </div>
   </div>
 </div>
 
@@ -436,6 +461,8 @@
 <div class="toast-stack" id="toastStack"></div>
 
 <script src="voice.js"></script>
+<script src="microstructure.js"></script>
+<script src="squawk.js"></script>
 <script src="globe.js"></script>
 <script src="app.js"></script>
 </body>

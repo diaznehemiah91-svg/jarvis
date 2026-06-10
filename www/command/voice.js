@@ -9,6 +9,7 @@ const Voice = (() => {
   let recog = null;
   let listening = false;
   let preferredVoice = null;
+  let muted = false;
 
   // Pick a premium-sounding English voice when available
   function loadVoice() {
@@ -26,8 +27,8 @@ const Voice = (() => {
     synth.onvoiceschanged = loadVoice;
   }
 
-  function speak(text, { rate = 1.02, pitch = 0.95 } = {}) {
-    if (!synth) return;
+  function speak(text, { rate = 1.02, pitch = 0.95, force = false } = {}) {
+    if (!synth || (muted && !force)) return;
     synth.cancel();
     const u = new SpeechSynthesisUtterance(text);
     if (preferredVoice) u.voice = preferredVoice;
@@ -76,6 +77,7 @@ const Voice = (() => {
 
   function stopListening() { if (recog) recog.stop(); cleanup(); }
   function cleanup() { listening = false; document.getElementById('voiceBtn')?.classList.remove('live'); }
+  function setMuted(on) { muted = !!on; }
 
-  return { speak, startListening, stopListening, setHud, get listening() { return listening; }, available: !!SR };
+  return { speak, startListening, stopListening, setHud, setMuted, get listening() { return listening; }, available: !!SR };
 })();

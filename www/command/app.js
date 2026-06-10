@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initKeyboard();
   initVoice();
   initButtons();
+  initSquawk();
   initGlobeHero();
   initNewsRail();
   updateMarketStatus();
@@ -115,16 +116,30 @@ function startClock() {
 }
 
 function updateMarketStatus() {
-  // US market hours 9:30–16:00 ET (approx via UTC-4/5; use local heuristic)
   const now = new Date();
   const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
   const day = et.getDay();
   const mins = et.getHours() * 60 + et.getMinutes();
-  const open = day >= 1 && day <= 5 && mins >= 570 && mins < 960;
   const el = document.getElementById('marketStatus');
   const txt = document.getElementById('marketStatusText');
-  el.classList.toggle('closed', !open);
-  txt.textContent = open ? 'MARKET OPEN' : 'MARKET CLOSED';
+  const phaseEl = document.getElementById('marketPhase');
+  const phaseLbl = document.getElementById('marketPhaseLabel');
+
+  let label, cls, phaseTxt, phaseCls;
+  const weekend = day === 0 || day === 6;
+  if (weekend || mins < 240 || mins >= 1200) {
+    label = 'MARKET CLOSED'; cls = 'closed'; phaseTxt = 'CLOSED'; phaseCls = 'phase-closed';
+  } else if (mins >= 240 && mins < 570) {
+    label = 'PRE-MARKET'; cls = 'pre'; phaseTxt = 'PRE-MARKET'; phaseCls = 'phase-pre';
+  } else if (mins >= 570 && mins < 960) {
+    label = 'REGULAR SESSION'; cls = 'open'; phaseTxt = 'REGULAR SESSION'; phaseCls = 'phase-open';
+  } else {
+    label = 'POST-MARKET'; cls = 'post'; phaseTxt = 'POST-MARKET'; phaseCls = 'phase-post';
+  }
+  el.className = 'market-status ' + cls;
+  txt.textContent = label;
+  if (phaseEl) { phaseEl.className = 'market-phase ' + phaseCls; }
+  if (phaseLbl) phaseLbl.textContent = phaseTxt;
 }
 
 // ════ COLOR SCALE ═══════════════════════════════════════════════════════════
@@ -451,6 +466,9 @@ function renderGlobeMovers(tiles, layerFilter) {
   }).join('') || '<div style="color:var(--text-faint);padding:8px 4px;font-size:12px">No data — sync first.</div>';
 }
 
+// Track last announced headline to avoid re-squawking on re-render
+let _lastSquawkHeadline = '';
+
 // ════ NEWS VIEW ═══════════════════════════════════════════════════════════════
 async function loadNews() {
   const [power, market] = await Promise.all([
@@ -536,6 +554,16 @@ function renderNewsRail() {
   if (feat) {
     html += `<div class="nr-section">⦿ Breaking</div>`;
     html += card(feat, true);
+    // Squawk featured power headline when new
+    if (window.Squawk && State.nrTab === 'power') {
+      const a = newsField(feat);
+      const key = a.url || a.title;
+      if (key && key !== _lastSquawkHeadline) {
+        _lastSquawkHeadline = key;
+        const kind = a.sentiment > 0.08 ? 'bull' : a.sentiment < -0.08 ? 'bear' : 'neutral';
+        Squawk.announce('Breaking: ' + a.title, kind);
+      }
+    }
   }
   if (rest.length) {
     html += `<div class="nr-section top">Top Stories</div>`;
@@ -978,6 +1006,23 @@ function initSettings() {
   document.getElementById('xTokenInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') saveXToken();
   });
+
+  // Squawk toggle
+  const sq = document.getElementById('squawkToggle');
+  if (sq) {
+    sq.addEventListener('change', () => {
+      if (window.Squawk) Squawk.setEnabled(sq.checked);
+      document.getElementById('squawkState').textContent = sq.checked ? 'ON' : 'OFF';
+    });
+  }
+}
+
+function initSquawk() {
+  if (!window.Squawk) return;
+  const sq = document.getElementById('squawkToggle');
+  const st = document.getElementById('squawkState');
+  if (sq) sq.checked = Squawk.enabled;
+  if (st) st.textContent = Squawk.enabled ? 'ON' : 'OFF';
 }
 
 function openSettings() {
@@ -987,6 +1032,13 @@ function openSettings() {
   document.getElementById('finnhubKeyInput').focus();
   renderSettingsStatus(State.dataStatus);
   loadNewsStatus();
+  // Reflect current squawk state
+  if (window.Squawk) {
+    const sq = document.getElementById('squawkToggle');
+    const st = document.getElementById('squawkState');
+    if (sq) sq.checked = Squawk.enabled;
+    if (st) st.textContent = Squawk.enabled ? 'ON' : 'OFF';
+  }
 }
 
 async function loadNewsStatus() {
@@ -1199,6 +1251,7 @@ const TV_RANGES = {
 };
 let _drawerTicker = null;
 let _drawerRange = '1W';
+let _drawerSim = null;
 
 function mountTVChart(ticker, rangeKey) {
   const host = document.getElementById('tvChart');
@@ -1359,6 +1412,29 @@ async function openDrawer(ticker) {
       <div class="tv-note">Free TradingView Advanced Chart · Dark · Volume · 21-EMA</div>
     </section>
 
+    <!-- ░░ TIER 2b — MICROSTRUCTURE (CVD + OBI) ░░ -->
+    <section class="tier tier2-micro">
+      <div class="micro-row">
+        <div class="micro-block">
+          <div class="micro-label">CUMULATIVE VOLUME DELTA</div>
+          <canvas id="cvdChart" class="cvd-canvas"></canvas>
+        </div>
+        <div class="micro-block">
+          <div class="micro-label">ORDER BOOK IMBALANCE</div>
+          <div class="obi-wrap">
+            <div class="obi-bar">
+              <div class="obi-bid" id="obiBid" style="width:50%"></div>
+              <div class="obi-ask" id="obiAsk" style="width:50%"></div>
+            </div>
+            <div class="obi-labels">
+              <span class="obi-lbl-bid" id="obiLblBid">50% BID</span>
+              <span class="obi-lbl-ask" id="obiLblAsk">50% ASK</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ░░ TIER 3 — DEEP INTELLIGENCE & SUPPLY CHAIN ░░ -->
     <section class="tier tier3">
       <div class="tier-block">
@@ -1399,12 +1475,45 @@ async function openDrawer(ticker) {
     </section>`;
 
   mountTVChart(ticker, _drawerRange);
+
+  // STRONG BUY squawk alert
+  if (window.Squawk && /STRONG BUY/i.test(assess.action)) {
+    Squawk.announce(
+      `Alert. ${ticker} strong buy signal. ${assess.conviction} percent conviction.`, 'bull'
+    );
+  }
+
+  // Start microstructure simulation (after a short delay so canvas is in DOM)
+  if (_drawerSim) { _drawerSim.destroy(); _drawerSim = null; }
+  if (window.MicroSim) {
+    setTimeout(() => {
+      if (_drawerTicker !== ticker) return;
+      _drawerSim = MicroSim.create('cvdChart', {
+        bias: assess.net_score || 0,
+        onImbalance: (imb) => {
+          const bid = document.getElementById('obiBid');
+          const ask = document.getElementById('obiAsk');
+          const lblBid = document.getElementById('obiLblBid');
+          const lblAsk = document.getElementById('obiLblAsk');
+          if (!bid) return;
+          const bidPct = Math.round(imb * 100);
+          const askPct = 100 - bidPct;
+          bid.style.width = bidPct + '%';
+          ask.style.width = askPct + '%';
+          if (lblBid) lblBid.textContent = bidPct + '% BID';
+          if (lblAsk) lblAsk.textContent = askPct + '% ASK';
+        },
+      });
+      if (_drawerSim) _drawerSim.start();
+    }, 60);
+  }
 }
 
 function closeDrawer() {
   document.getElementById('drawerOverlay').classList.remove('open');
   const host = document.getElementById('tvChart');
-  if (host) host.innerHTML = '';            // tear down the widget iframe
+  if (host) host.innerHTML = '';
+  if (_drawerSim) { _drawerSim.destroy(); _drawerSim = null; }
   _drawerTicker = null;
 }
 
@@ -1457,9 +1566,19 @@ function renderPalette() {
 function runPalette(idx) { const it = paletteItems[idx]; if (it) { closePalette(); it.act(); } }
 
 // ════ KEYBOARD ══════════════════════════════════════════════════════════════
+let _oppCycleIdx = -1;
+
+function _cycleOpportunity(dir) {
+  const list = (State.opportunities?.[State.oppTab] || []);
+  if (!list.length) return;
+  _oppCycleIdx = Math.max(0, Math.min(list.length - 1, _oppCycleIdx + dir));
+  openDrawer(list[_oppCycleIdx].ticker);
+}
+
 function initKeyboard() {
   document.addEventListener('keydown', (e) => {
     const palOpen = document.getElementById('paletteOverlay').classList.contains('open');
+    const drawerOpen = document.getElementById('drawerOverlay').classList.contains('open');
     // Ctrl/Cmd+K → palette
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); palOpen ? closePalette() : openPalette(); return; }
     if (palOpen) {
@@ -1470,8 +1589,14 @@ function initKeyboard() {
       return;
     }
     if (document.activeElement.tagName === 'INPUT') return;
-    if (e.key === 'Escape') { closeDrawer(); closeSettings(); Voice.setHud(false); }
+    if (e.key === 'Escape') {
+      if (drawerOpen) { closeDrawer(); openPalette(); }
+      else { closeSettings(); Voice.setHud(false); }
+    }
     if (e.key === '/') { e.preventDefault(); openPalette(); }
+    // Arrow Up/Down cycle through opportunities
+    if (e.key === 'ArrowDown') { e.preventDefault(); _cycleOpportunity(1); return; }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); _cycleOpportunity(-1); return; }
     const map = { '1': 'overview', '2': 'heatmap', '3': 'opportunities', '4': 'options', '5': 'flow', '6': 'news' };
     if (map[e.key]) switchView(map[e.key]);
     if (e.key.toLowerCase() === 'v') Voice.startListening(handleVoiceCommand);
