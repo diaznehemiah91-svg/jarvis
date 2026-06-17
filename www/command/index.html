@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>J.A.R.V.I.S — Command Center</title>
+  <link rel="shortcut icon" href="/assets/img/logo.ico" type="image/x-icon" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <script type="text/javascript" src="/eel.js"></script>
+  <script src="/assets/vendore/three.min.js"></script>
+</head>
+<body>
+
+<!-- Animated background layers -->
+<div class="bg-mesh"></div>
+<div class="bg-grid"></div>
+<canvas id="particles"></canvas>
+
+<!-- ═══ TOP BAR ═══════════════════════════════════════════════════════ -->
+<header class="topbar glass">
+  <div class="topbar-left">
+    <div class="logo">
+      <div class="logo-orb" id="logoOrb"></div>
+      <div class="logo-text">
+        <span class="logo-name">J.A.R.V.I.S</span>
+        <span class="logo-sub">COMMAND CENTER</span>
+      </div>
+    </div>
+    <div class="market-status" id="marketStatus">
+      <span class="dot"></span><span id="marketStatusText">MARKET</span>
+    </div>
+    <div class="market-phase" id="marketPhase">
+      <span class="phase-label" id="marketPhaseLabel">—</span>
+    </div>
+    <div class="data-badge sim" id="dataBadge" title="Data source">
+      <span class="data-dot"></span><span id="dataBadgeText">SIM</span>
+    </div>
+    <div class="heartbeat" id="heartbeat" title="Engine running">
+      <span class="hb-dot"></span><span class="hb-label">ENGINE RUNNING</span>
+    </div>
+  </div>
+
+  <div class="topbar-center">
+    <button class="search-trigger" id="searchTrigger">
+      <span class="search-icon">⌕</span>
+      <span class="search-label">Search ticker, command…</span>
+      <kbd>Ctrl K</kbd>
+    </button>
+  </div>
+
+  <div class="topbar-right">
+    <div class="clock" id="clock">--:--:--</div>
+    <button class="icon-btn" id="briefBtn" title="Voice briefing (B)">
+      <span class="i">▶</span><span class="lbl">BRIEF</span>
+    </button>
+    <button class="icon-btn voice-btn" id="voiceBtn" title="Voice command (V)">
+      <span class="voice-orb"></span><span class="lbl">JARVIS</span>
+    </button>
+    <button class="icon-btn" id="settingsBtn" title="Settings / API keys">
+      <span class="i">⚙</span><span class="lbl">KEYS</span>
+    </button>
+    <a class="icon-btn" href="/index.html" title="Classic UI">⌂</a>
+  </div>
+</header>
+
+<!-- ═══ TICKER TAPE ═══════════════════════════════════════════════════ -->
+<div class="ticker-tape glass" id="tickerTape">
+  <div class="ticker-track" id="tickerTrack"></div>
+</div>
+
+<!-- ═══ NAV RAIL ══════════════════════════════════════════════════════ -->
+<nav class="rail glass">
+  <button class="rail-btn active" data-view="overview" title="Overview">
+    <span class="rail-ico">◳</span><span class="rail-lbl">Overview</span>
+  </button>
+  <button class="rail-btn" data-view="heatmap" title="Sector Heat Maps">
+    <span class="rail-ico">▦</span><span class="rail-lbl">Heat Maps</span>
+  </button>
+  <button class="rail-btn" data-view="opportunities" title="Opportunities">
+    <span class="rail-ico">◈</span><span class="rail-lbl">Ideas</span>
+  </button>
+  <button class="rail-btn" data-view="options" title="Options Flow">
+    <span class="rail-ico">⟐</span><span class="rail-lbl">Options</span>
+  </button>
+  <button class="rail-btn" data-view="flow" title="Institutional Flow">
+    <span class="rail-ico">≋</span><span class="rail-lbl">Flow</span>
+  </button>
+  <button class="rail-btn" data-view="news" title="Market News">
+    <span class="rail-ico">⚡</span><span class="rail-lbl">News</span>
+  </button>
+  <div class="rail-spacer"></div>
+  <button class="rail-btn" id="refreshBtn" title="Refresh all data (R)">
+    <span class="rail-ico">⟳</span><span class="rail-lbl">Sync</span>
+  </button>
+</nav>
+
+<!-- ═══ MAIN STAGE ════════════════════════════════════════════════════ -->
+<main class="stage" id="stage">
+
+  <!-- ── OVERVIEW ──────────────────────────────────────────────────── -->
+  <section class="view active" id="view-overview">
+    <!-- Sector rotation alert banner -->
+    <div class="rotation-banner" id="rotationBanner" style="display:none">
+      <span class="rot-icon">⟳</span>
+      <span class="rot-text"></span>
+      <button class="rot-dismiss" onclick="document.getElementById('rotationBanner').style.display='none'">✕</button>
+    </div>
+
+    <!-- ── GLOBE + BREAKING NEWS (side by side) ──────────────────────── -->
+    <div class="overview-top">
+
+    <!-- ── PREMIUM 3D GLOBE HERO ─────────────────────────────────────── -->
+    <div class="globe-hero glass" id="globeHero">
+      <div class="globe-hero-stage" id="globeHeroStage"></div>
+
+      <!-- top bar: title + live clock -->
+      <div class="gh-topbar">
+        <div class="gh-title">
+          <span class="gh-title-main">JARVIS</span>
+          <span class="gh-title-sub">GLOBAL MARKET INTELLIGENCE</span>
+        </div>
+        <div class="gh-live">
+          <span class="gh-live-dot"></span> LIVE
+          <span class="gh-live-date" id="ghDate">—</span>
+        </div>
+      </div>
+
+      <!-- left: critical watchlist -->
+      <aside class="gh-watch">
+        <div class="gh-watch-head">◆ CRITICAL WATCHLIST</div>
+        <div class="gh-watch-list" id="ghWatch"></div>
+      </aside>
+
+      <!-- bottom-left: legend -->
+      <div class="gh-legend">
+        <div class="gh-legend-title">CONVICTION</div>
+        <div class="gh-legend-row"><span class="gh-dot" style="background:#1fe0a0"></span> Strong Bullish</div>
+        <div class="gh-legend-row"><span class="gh-dot" style="background:#7fd47a"></span> Bullish</div>
+        <div class="gh-legend-row"><span class="gh-dot" style="background:#ffc857"></span> Neutral</div>
+        <div class="gh-legend-row"><span class="gh-dot" style="background:#ff9f45"></span> Bearish</div>
+        <div class="gh-legend-row"><span class="gh-dot" style="background:#ff5470"></span> Strong Bearish</div>
+      </div>
+
+      <!-- bottom-center: stat counters -->
+      <div class="gh-stats" id="ghStats"></div>
+
+      <!-- bottom-right: controls -->
+      <div class="gh-controls">
+        <button class="gh-ctrl" id="ghRotate" title="Toggle rotation">◎ <span>Rotate</span></button>
+        <button class="gh-ctrl" id="ghReset" title="Reset view">⟲ <span>Reset</span></button>
+        <button class="gh-ctrl" data-goto="heatmap" title="Open full map">⛶ <span>Expand</span></button>
+      </div>
+    </div>
+
+    <!-- ── BREAKING NEWS RAIL ────────────────────────────────────────── -->
+    <aside class="news-rail glass" id="newsRail">
+      <div class="news-rail-head">
+        <div class="news-rail-tabs">
+          <button class="nr-tab active" data-nrtab="power">⚡ Power</button>
+          <button class="nr-tab" data-nrtab="market">Market</button>
+        </div>
+        <button class="nr-refresh" id="nrRefresh" title="Refresh headlines">⟳</button>
+      </div>
+      <div class="news-rail-body" id="newsRailBody">
+        <div class="nr-loading">Loading live headlines…</div>
+      </div>
+      <button class="news-rail-more" data-goto="news">All market intelligence →</button>
+    </aside>
+
+    </div><!-- /.overview-top -->
+
+    <div class="view-grid overview-grid">
+
+      <!-- Regime hero -->
+      <div class="card glass regime-hero" id="regimeHero">
+        <div class="card-eyebrow">MARKET REGIME</div>
+        <div class="regime-hero-main">
+          <div class="regime-gauge" id="regimeGauge"></div>
+          <div class="regime-hero-text">
+            <div class="regime-name" id="regimeName">ANALYZING…</div>
+            <div class="regime-score" id="regimeScore">—</div>
+            <div class="regime-vix" id="regimeVix">VIX —</div>
+          </div>
+        </div>
+        <div class="regime-components" id="regimeComponents"></div>
+        <div class="regime-actions" id="regimeActionList"></div>
+      </div>
+
+      <!-- Quick stats -->
+      <div class="card glass stat-card" id="statBuys">
+        <div class="stat-ico bullish">▲</div>
+        <div class="stat-num" id="statBuysNum">—</div>
+        <div class="stat-lbl">BUY SIGNALS</div>
+      </div>
+      <div class="card glass stat-card" id="statSells">
+        <div class="stat-ico bearish">▼</div>
+        <div class="stat-num" id="statSellsNum">—</div>
+        <div class="stat-lbl">SELL SIGNALS</div>
+      </div>
+      <div class="card glass stat-card" id="statFlow">
+        <div class="stat-ico neutral">≋</div>
+        <div class="stat-num" id="statFlowNum">—</div>
+        <div class="stat-lbl">FLOW ALERTS</div>
+      </div>
+
+      <!-- Top opportunities preview -->
+      <div class="card glass span-2" id="ovOpps">
+        <div class="card-head">
+          <span class="card-title">TOP CONVICTION PLAYS</span>
+          <button class="ghost-btn" data-goto="opportunities">View all →</button>
+        </div>
+        <div class="opp-strip" id="ovOppStrip"></div>
+      </div>
+
+      <!-- Options preview (balanced bull + bear) -->
+      <div class="card glass span-2" id="ovOpts">
+        <div class="card-head">
+          <span class="card-title">OPTIONS IDEAS · BULL &amp; BEAR</span>
+          <button class="ghost-btn" data-goto="options">View all →</button>
+        </div>
+        <div class="opt-strip" id="ovOptStrip"></div>
+      </div>
+
+      <!-- Alert feed -->
+      <div class="card glass span-2 tall" id="ovAlerts">
+        <div class="card-head">
+          <span class="card-title">LIVE INTELLIGENCE FEED</span>
+          <span class="pulse-dot"></span>
+        </div>
+        <div class="feed" id="ovFeed"></div>
+      </div>
+
+      <!-- Mini heatmap -->
+      <div class="card glass span-2" id="ovHeat">
+        <div class="card-head">
+          <span class="card-title">SECTOR PULSE</span>
+          <button class="ghost-btn" data-goto="heatmap">Expand →</button>
+        </div>
+        <div class="mini-heat" id="ovMiniHeat"></div>
+      </div>
+
+      <!-- DCA Watchlist -->
+      <div class="card glass span-2" id="ovDca">
+        <div class="card-head">
+          <span class="card-title">CONVICTION WATCHLIST · DCA TARGETS</span>
+          <span class="card-eyebrow" id="dcaRegimeTag" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid rgba(0,212,255,0.2)">REGIME</span>
+        </div>
+        <div class="dca-strip" id="dcaStrip"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── 3D GLOBE ──────────────────────────────────────────────────── -->
+  <section class="view" id="view-heatmap">
+    <div class="globe-layout">
+      <div class="globe-stage" id="globeStage"></div>
+      <aside class="globe-sidebar glass">
+        <div class="globe-sidebar-head">
+          <div class="card-eyebrow" style="margin-bottom:10px">GLOBAL INTEL MAP</div>
+          <div class="layer-filter" id="layerFilter">
+            <button class="chip active" data-layer="all">All</button>
+            <button class="chip" data-layer="AI Hardware">AI HW</button>
+            <button class="chip" data-layer="Infrastructure">Infra</button>
+            <button class="chip" data-layer="Frontier">Frontier</button>
+            <button class="chip" data-layer="AI Software">AI SW</button>
+            <button class="chip" data-layer="Mega Cap Tech">Mega</button>
+          </div>
+          <div style="font-size:10px;color:var(--text-faint);margin-top:8px">
+            Drag to rotate · Click marker to inspect
+          </div>
+        </div>
+        <div class="globe-movers" id="globeMovers"></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ── NEWS ─────────────────────────────────────────────────────── -->
+  <section class="view" id="view-news">
+    <div class="view-head">
+      <h2>⚡ MARKET INTELLIGENCE</h2>
+      <div class="news-tabs">
+        <button class="chip active" data-news="power">Power Feed</button>
+        <button class="chip" data-news="market">Market</button>
+      </div>
+    </div>
+    <div class="news-grid" id="newsGrid">
+      <div style="color:var(--text-faint);padding:20px">Loading news feed…</div>
+    </div>
+  </section>
+
+  <!-- ── OPPORTUNITIES ─────────────────────────────────────────────── -->
+  <section class="view" id="view-opportunities">
+    <div class="view-head">
+      <h2>BUY / SELL OPPORTUNITIES</h2>
+      <div class="opp-tabs">
+        <button class="chip active" data-opp="buys">▲ Longs</button>
+        <button class="chip" data-opp="sells">▼ Shorts</button>
+      </div>
+    </div>
+    <div class="opp-table-wrap">
+      <div class="opp-table" id="oppTable"></div>
+    </div>
+  </section>
+
+  <!-- ── OPTIONS ───────────────────────────────────────────────────── -->
+  <section class="view" id="view-options">
+    <div class="view-head">
+      <h2>OPTIONS IDEAS</h2>
+      <div class="opt-controls">
+        <div class="opt-tabs">
+          <button class="chip active" data-optdir="all">All</button>
+          <button class="chip" data-optdir="bullish">▲ Bullish</button>
+          <button class="chip" data-optdir="bearish">▼ Bearish</button>
+        </div>
+        <div class="opt-expiry" id="optExpiry">Expiry —</div>
+      </div>
+    </div>
+    <div class="opt-summary" id="optSummary"></div>
+    <div class="opt-grid" id="optGrid"></div>
+  </section>
+
+  <!-- ── FLOW ──────────────────────────────────────────────────────── -->
+  <section class="view" id="view-flow">
+    <div class="view-head">
+      <h2>INSTITUTIONAL FLOW</h2>
+      <div class="flow-tabs">
+        <button class="chip active" data-flow="all">All</button>
+        <button class="chip" data-flow="whale_block">Whale Blocks</button>
+        <button class="chip" data-flow="options_sweep">Sweeps</button>
+        <button class="chip" data-flow="insider_flow">Insider</button>
+      </div>
+    </div>
+    <!-- Flow stats header -->
+    <div class="flow-stats-bar" id="flowStatsBar"></div>
+    <div class="flow-list" id="flowList"></div>
+  </section>
+
+</main>
+
+<!-- ═══ COMMAND PALETTE ═══════════════════════════════════════════════ -->
+<div class="palette-overlay" id="paletteOverlay">
+  <div class="palette glass">
+    <input type="text" id="paletteInput" placeholder="Search ticker, sector, or command…" autocomplete="off" />
+    <div class="palette-results" id="paletteResults"></div>
+    <div class="palette-foot">
+      <span><kbd>↑↓</kbd> navigate</span>
+      <span><kbd>↵</kbd> select</span>
+      <span><kbd>esc</kbd> close</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DETAIL DRAWER ═════════════════════════════════════════════════ -->
+<div class="drawer-overlay" id="drawerOverlay">
+  <aside class="drawer glass" id="drawer">
+    <button class="drawer-close" id="drawerClose">✕</button>
+    <div id="drawerBody"></div>
+  </aside>
+</div>
+
+<!-- ═══ SETTINGS MODAL ════════════════════════════════════════════════ -->
+<div class="settings-overlay" id="settingsOverlay">
+  <div class="settings-modal glass">
+    <button class="settings-close" id="settingsClose">✕</button>
+    <div class="settings-head">
+      <div class="card-eyebrow">DATA SOURCE</div>
+      <h3>Connect Live Market Data</h3>
+      <p class="settings-sub">Paste your free Finnhub API key to switch JARVIS from SIM to LIVE.
+        Get one at <a href="https://finnhub.io/register" target="_blank">finnhub.io/register</a>.</p>
+    </div>
+
+    <div class="settings-status" id="settingsStatus">
+      <span class="settings-status-dot"></span>
+      <span id="settingsStatusText">Checking status…</span>
+    </div>
+
+    <label class="settings-label" for="finnhubKeyInput">FINNHUB API KEY</label>
+    <div class="settings-key-row">
+      <input type="password" id="finnhubKeyInput" placeholder="d8cit31r01qidic84es0…" autocomplete="off" spellcheck="false" />
+      <button class="settings-eye" id="finnhubKeyToggle" title="Show / hide">👁</button>
+    </div>
+
+    <div class="settings-actions">
+      <button class="settings-save" id="finnhubKeySave">Save &amp; Connect</button>
+      <button class="settings-clear" id="finnhubKeyClear">Clear</button>
+    </div>
+
+    <div class="settings-msg" id="settingsMsg"></div>
+
+    <div class="settings-note">
+      Your key is stored locally on this machine (in <code>jarvis.db</code>) and sent only to Finnhub.
+      You can also set the <code>FINNHUB_API_KEY</code> environment variable instead.
+    </div>
+
+    <!-- ── X / Twitter breaking-news source ─────────────────────────── -->
+    <div class="settings-divider"></div>
+
+    <div class="settings-head" style="margin-bottom:4px">
+      <div class="card-eyebrow">BREAKING NEWS · OPTIONAL</div>
+      <h3 style="font-size:15px">X / Twitter Instant Headlines</h3>
+      <p class="settings-sub">Paste an X API v2 <b>Bearer token</b> to pull instant breaking
+        headlines from Walter Bloomberg, First Squawk, Reuters &amp; more straight into the
+        news feed. Requires a paid X API plan.</p>
+    </div>
+
+    <div class="settings-status" id="xStatus">
+      <span class="settings-status-dot" style="background:var(--text-faint)"></span>
+      <span id="xStatusText">X source dormant</span>
+    </div>
+
+    <label class="settings-label" for="xTokenInput">X BEARER TOKEN</label>
+    <div class="settings-key-row">
+      <input type="password" id="xTokenInput" placeholder="AAAAAAAAAAAAAAAA…" autocomplete="off" spellcheck="false" />
+      <button class="settings-eye" id="xTokenToggle" title="Show / hide">👁</button>
+    </div>
+
+    <div class="settings-actions">
+      <button class="settings-save" id="xTokenSave">Save &amp; Activate</button>
+      <button class="settings-clear" id="xTokenClear">Clear</button>
+    </div>
+
+    <div class="settings-msg" id="xMsg"></div>
+
+    <div class="settings-note">
+      Tracked handles: <code>@DeItaone</code> <code>@FirstSquawk</code> <code>@Reuters</code> <code>@realDonaldTrump</code>.
+      Stored locally in <code>jarvis.db</code>; also settable via the <code>X_BEARER_TOKEN</code> env var.
+    </div>
+
+    <!-- ── Squawk Box toggle ─────────────────────────────────────────── -->
+    <div class="settings-divider"></div>
+
+    <div class="settings-head" style="margin-bottom:4px">
+      <div class="card-eyebrow">AUDIO ALERTS · SQUAWK BOX</div>
+      <h3 style="font-size:15px">Tactical Audio Announcements</h3>
+      <p class="settings-sub">Enables synthesized chime + voice announcement for STRONG BUY signals
+        and breaking power headlines. Uses Web Audio API &amp; Web Speech API — no account required.</p>
+    </div>
+
+    <div class="squawk-row">
+      <span class="squawk-label">SQUAWK BOX</span>
+      <label class="squawk-toggle" id="squawkToggleWrap">
+        <input type="checkbox" id="squawkToggle" />
+        <span class="squawk-slider"></span>
+      </label>
+      <span class="squawk-state" id="squawkState">—</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ VOICE HUD ═════════════════════════════════════════════════════ -->
+<div class="voice-hud" id="voiceHud">
+  <div class="voice-visual"><span></span><span></span><span></span><span></span><span></span></div>
+  <div class="voice-transcript" id="voiceTranscript">Listening…</div>
+</div>
+
+<!-- ═══ TOAST ═════════════════════════════════════════════════════════ -->
+<div class="toast-stack" id="toastStack"></div>
+
+<script src="voice.js"></script>
+<script src="microstructure.js"></script>
+<script src="squawk.js"></script>
+<script src="globe.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JARVIS — Institutional Flow Tracker</title>
+  <link rel="stylesheet" href="style.css" />
+  <script type="text/javascript" src="/eel.js"></script>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────── -->
+<header class="hdr">
+  <div class="hdr-left">
+    <span class="hdr-logo">J·A·R·V·I·S</span>
+    <span class="hdr-sub">Institutional Flow Tracker</span>
+  </div>
+  <div class="hdr-right">
+    <span id="clock" class="clock"></span>
+    <button class="btn-refresh" onclick="triggerRefresh()">⟳ REFRESH ALL</button>
+    <a href="/index.html" class="btn-back">← MAIN</a>
+  </div>
+</header>
+
+<!-- ── Regime Banner ──────────────────────────────────────── -->
+<section class="regime-banner" id="regimeBanner">
+  <div class="regime-label" id="regimeLabel">LOADING REGIME…</div>
+  <div class="regime-score-row">
+    <div class="component-pill" id="pillTech">TECH BIAS —</div>
+    <div class="component-pill" id="pillNews">NEWS SENT —</div>
+    <div class="component-pill" id="pillReddit">REDDIT MOM —</div>
+    <div class="component-pill" id="pillVIX">VIX —</div>
+  </div>
+  <div class="regime-actions" id="regimeActions"></div>
+</section>
+
+<!-- ── Main grid ───────────────────────────────────────────── -->
+<main class="grid">
+
+  <!-- LEFT: Sector heatmap -->
+  <section class="panel" id="sectorPanel">
+    <div class="panel-title">SUPPLY CHAIN HEATMAP</div>
+    <div class="layer-group" id="layerAI">
+      <div class="layer-label">AI HARDWARE</div>
+      <div class="sector-grid" id="sectorAI"></div>
+    </div>
+    <div class="layer-group" id="layerInfra">
+      <div class="layer-label">INFRASTRUCTURE</div>
+      <div class="sector-grid" id="sectorInfra"></div>
+    </div>
+    <div class="layer-group" id="layerFrontier">
+      <div class="layer-label">FRONTIER</div>
+      <div class="sector-grid" id="sectorFrontier"></div>
+    </div>
+  </section>
+
+  <!-- CENTER: Flow alerts feed -->
+  <section class="panel" id="alertPanel">
+    <div class="panel-title">INSTITUTIONAL FLOW ALERTS</div>
+    <div class="alert-tabs">
+      <button class="tab active" onclick="switchTab('all', this)">ALL</button>
+      <button class="tab" onclick="switchTab('whale_block', this)">WHALE BLOCKS</button>
+      <button class="tab" onclick="switchTab('options_sweep', this)">SWEEPS</button>
+      <button class="tab" onclick="switchTab('SENTIMENT_SPIKE', this)">SENTIMENT</button>
+    </div>
+    <div id="alertFeed" class="alert-feed"></div>
+  </section>
+
+  <!-- RIGHT: Sentiment & DCA -->
+  <section class="panel" id="rightPanel">
+    <div class="panel-title">SENTIMENT ENGINE</div>
+    <div id="sentimentGrid" class="sentiment-grid"></div>
+
+    <div class="panel-title" style="margin-top:18px;">DCA WATCHLIST</div>
+    <div id="dcaList" class="dca-list"></div>
+
+    <div class="panel-title" style="margin-top:18px;">ROTATION SIGNAL</div>
+    <div id="rotationCard" class="rotation-card">Loading…</div>
+  </section>
+
+</main>
+
+<!-- ── Ripple Modal ────────────────────────────────────────── -->
+<div class="modal-overlay" id="rippleModal" onclick="closeRipple()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title" id="rippleTitle">Supply Chain Ripple</div>
+    <div id="rippleBody"></div>
+    <button class="btn-close" onclick="closeRipple()">CLOSE</button>
+  </div>
+</div>
+
+<script src="main.js"></script>
+</body>
+</html>

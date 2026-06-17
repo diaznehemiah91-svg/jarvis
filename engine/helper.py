@@ -1,8 +1,14 @@
 import os
 import re
 import time
-import markdown2
-from bs4 import BeautifulSoup
+try:
+    import markdown2
+except Exception:
+    markdown2 = None
+try:
+    from bs4 import BeautifulSoup
+except Exception:
+    BeautifulSoup = None
 
 def extract_yt_term(command):
     # Define a regular expression pattern to capture the song name
@@ -55,6 +61,9 @@ def replace_spaces_with_percent_s(input_string):
     return input_string.replace(' ', '%s')
 
 def markdown_to_text(md):
+    if markdown2 is None or BeautifulSoup is None:
+        # Strip basic markdown without the optional libraries.
+        return re.sub(r"[*_`#>\-]", "", str(md)).strip()
     html = markdown2.markdown(md)
     soup = BeautifulSoup(html, "html.parser")
     return soup.get_text().strip()
