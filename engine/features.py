@@ -365,14 +365,14 @@ def updatePersonalInfo(name, designation, mobileno, email, city):
     if count > 0:
         # Update existing record
         cursor.execute(
-            '''UPDATE info 
+            '''UPDATE info
                SET name=?, designation=?, mobileno=?, email=?, city=?''',
             (name, designation, mobileno, email, city)
         )
     else:
         # Insert new record if no data exists
         cursor.execute(
-            '''INSERT INTO info (name, designation, mobileno, email, city) 
+            '''INSERT INTO info (name, designation, mobileno, email, city)
                VALUES (?, ?, ?, ?, ?)''',
             (name, designation, mobileno, email, city)
         )
@@ -380,6 +380,38 @@ def updatePersonalInfo(name, designation, mobileno, email, city):
     con.commit()
     personalInfo()
     return 1
+
+
+# ── Webull positions ──────────────────────────────────────────────────────────
+
+@eel.expose
+def checkWebullPositions():
+    """Check Webull account positions and return formatted summary."""
+    try:
+        from engine.trading.webull_client import fetch_positions, get_client
+
+        client = get_client()
+        summary = fetch_positions()
+
+        if "error" in summary:
+            msg = f"Error fetching positions: {summary['error']}"
+            speak(msg)
+            return {"status": "error", "message": msg}
+
+        positions = summary.get("positions", [])
+        formatted = client.format_positions_display(positions)
+
+        speak(f"You have {len(positions)} positions in your Webull account")
+        return {
+            "status": "success",
+            "positions": positions,
+            "formatted": formatted,
+            "count": len(positions)
+        }
+    except Exception as e:
+        msg = f"Failed to check Webull positions: {str(e)}"
+        speak(msg)
+        return {"status": "error", "message": msg}
 
 
 

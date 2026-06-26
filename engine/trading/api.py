@@ -217,6 +217,34 @@ def setApiKey(provider: str = "finnhub", key: str = ""):
     return json.dumps({"error": f"unknown provider {provider}"})
 
 
+# ── Webull integration ───────────────────────────────────────────────────────
+
+@eel.expose
+def getWebullPositions(account_id: str = ""):
+    """Fetch Webull account positions."""
+    from engine.trading.webull_client import fetch_positions
+    result = fetch_positions(account_id if account_id else None)
+    return json.dumps(result)
+
+
+@eel.expose
+def getWebullAccountList():
+    """Fetch list of Webull accounts."""
+    from engine.trading.webull_client import get_client
+    client = get_client()
+    result = client.get_account_list()
+    return json.dumps(result)
+
+
+@eel.expose
+def getWebullAccountBalance(account_id: str):
+    """Fetch Webull account balance."""
+    from engine.trading.webull_client import get_client
+    client = get_client()
+    result = client.get_account_balance(account_id)
+    return json.dumps(result)
+
+
 # ── Background refresh ────────────────────────────────────────────────────────
 
 def _background_refresh():
