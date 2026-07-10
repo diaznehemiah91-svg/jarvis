@@ -24,6 +24,7 @@ const State = {
 let globeInitialized = false;   // heatmap-view globe
 let ovGlobe = null;             // overview hero globe instance
 let hmGlobe = null;             // heatmap-view globe instance
+let liveMap = null;             // live 3D map instance (worldmap view)
 
 // ── eel call helper (works with real eel and the demo shim) ──────────────────
 function call(fn, ...args) {
@@ -100,6 +101,7 @@ async function loadAll() {
   renderMiniHeat();
   renderOverviewGlobe();
   if (globeInitialized) renderGlobe(State.layerFilter);
+  renderLiveMap();
   renderOpportunities();
   renderOptions();
   renderFlow();
@@ -464,6 +466,35 @@ function renderGlobeMovers(tiles, layerFilter) {
       <span class="globe-mover-score" style="color:${col}">${sign}${Number(t.net_score).toFixed(2)}</span>
     </div>`;
   }).join('') || '<div style="color:var(--text-faint);padding:8px 4px;font-size:12px">No data — sync first.</div>';
+}
+
+// ════ LIVE 3D MAP VIEW ════════════════════════════════════════════════════════
+function initLiveMap() {
+  if (liveMap || typeof LiveMap === 'undefined' || !LiveMap.create) return;
+  liveMap = LiveMap.create('lmStage', { onClick: openDrawer });
+  if (!liveMap) return;
+
+  const rot = document.getElementById('lmRotate');
+  if (rot) rot.addEventListener('click', () => liveMap.setRotate(!liveMap.isRotating()));
+  const sun = document.getElementById('lmFollowSun');
+  if (sun) sun.addEventListener('click', () => liveMap.followSun());
+  const rst = document.getElementById('lmReset');
+  if (rst) rst.addEventListener('click', () => liveMap.reset());
+  const arcs = document.getElementById('lmArcs');
+  if (arcs) {
+    arcs.classList.add('active');
+    arcs.addEventListener('click', () => {
+      arcs.classList.toggle('active');
+      liveMap.setArcs(arcs.classList.contains('active'));
+    });
+  }
+  renderLiveMap();
+}
+
+function renderLiveMap() {
+  if (!liveMap) return;
+  liveMap.setTiles(allHeatmapTiles());
+  liveMap.setAlerts(State.briefing?.alerts || []);
 }
 
 // Track last announced headline to avoid re-squawking on re-render
@@ -962,6 +993,10 @@ function switchView(view) {
       if (State.heatmap) renderGlobe(State.layerFilter);
     }
   }
+  if (view === 'worldmap') {
+    initLiveMap();
+    if (liveMap) liveMap.resize();
+  }
   if (view === 'news' && !State.news) {
     loadNews();
   }
@@ -1175,6 +1210,7 @@ function handleVoiceCommand(text) {
   setTimeout(() => Voice.setHud(false), 2500);
 
   // Navigation
+  if (/(world ?map|live ?map|3 ?d ?map|planet|earth)/.test(t)) { switchView('worldmap'); return Voice.speak('Bringing up the live planetary map.'); }
   if (/(heat ?map|sector|globe)/.test(t)) { switchView('heatmap'); return Voice.speak('Opening global sector map.'); }
   if (/(option)/.test(t)) { switchView('options'); return Voice.speak('Showing options ideas, bull and bear.'); }
   if (/(opportunit|idea|buy|sell|long|short)/.test(t) && !/regime/.test(t)) { switchView('opportunities'); return Voice.speak('Here are the opportunities.'); }
@@ -1536,6 +1572,7 @@ function buildPaletteCommands() {
   const cmds = [
     { type: 'cmd', title: 'Go to Overview', sub: 'View', ico: '◳', act: () => switchView('overview') },
     { type: 'cmd', title: 'Go to Heat Maps', sub: 'View', ico: '▦', act: () => switchView('heatmap') },
+    { type: 'cmd', title: 'Go to Live 3D Map', sub: 'View', ico: '◍', act: () => switchView('worldmap') },
     { type: 'cmd', title: 'Go to Opportunities', sub: 'View', ico: '◈', act: () => switchView('opportunities') },
     { type: 'cmd', title: 'Go to Options', sub: 'View', ico: '⟐', act: () => switchView('options') },
     { type: 'cmd', title: 'Go to Flow', sub: 'View', ico: '≋', act: () => switchView('flow') },
@@ -1597,8 +1634,9 @@ function initKeyboard() {
     // Arrow Up/Down cycle through opportunities
     if (e.key === 'ArrowDown') { e.preventDefault(); _cycleOpportunity(1); return; }
     if (e.key === 'ArrowUp')   { e.preventDefault(); _cycleOpportunity(-1); return; }
-    const map = { '1': 'overview', '2': 'heatmap', '3': 'opportunities', '4': 'options', '5': 'flow', '6': 'news' };
+    const map = { '1': 'overview', '2': 'heatmap', '3': 'opportunities', '4': 'options', '5': 'flow', '6': 'news', '7': 'worldmap' };
     if (map[e.key]) switchView(map[e.key]);
+    if (e.key.toLowerCase() === 'm') switchView('worldmap');
     if (e.key.toLowerCase() === 'v') Voice.startListening(handleVoiceCommand);
     if (e.key.toLowerCase() === 'b') speakBriefing();
     if (e.key.toLowerCase() === 'r') doSync();

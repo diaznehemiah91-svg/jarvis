@@ -79,6 +79,9 @@
   <button class="rail-btn" data-view="heatmap" title="Sector Heat Maps">
     <span class="rail-ico">▦</span><span class="rail-lbl">Heat Maps</span>
   </button>
+  <button class="rail-btn" data-view="worldmap" title="Live 3D Map (M)">
+    <span class="rail-ico">◍</span><span class="rail-lbl">Live Map</span>
+  </button>
   <button class="rail-btn" data-view="opportunities" title="Opportunities">
     <span class="rail-ico">◈</span><span class="rail-lbl">Ideas</span>
   </button>
@@ -278,6 +281,54 @@
     </div>
   </section>
 
+  <!-- ── LIVE 3D MAP ──────────────────────────────────────────────── -->
+  <section class="view" id="view-worldmap">
+    <div class="livemap-wrap">
+      <div class="livemap-stage" id="lmStage"></div>
+
+      <!-- top-left: title + UTC -->
+      <div class="lm-panel lm-title glass">
+        <div class="lm-title-main">LIVE 3D MAP</div>
+        <div class="lm-title-sub">PLANETARY MARKET OPERATIONS</div>
+        <div class="lm-utc" id="lmUtc">UTC --:--:--</div>
+      </div>
+
+      <!-- top-center: world session clocks -->
+      <div class="lm-panel lm-clocks glass" id="lmClocks"></div>
+
+      <!-- right: exchange board + live flow feed -->
+      <aside class="lm-panel lm-side glass">
+        <div class="lm-side-head">◆ EXCHANGE SESSIONS</div>
+        <div class="lm-exch-list" id="lmExchList"></div>
+        <div class="lm-side-head lm-side-head-feed">≋ LIVE FLOW ROUTES</div>
+        <div class="lm-feed" id="lmFeed">
+          <div class="lm-feed-empty">Scanning institutional flow…</div>
+        </div>
+      </aside>
+
+      <!-- bottom-left: legend + stats -->
+      <div class="lm-panel lm-legend glass">
+        <div class="lm-legend-row"><span class="gh-dot" style="background:#1fe0a0"></span> Exchange open / bull flow</div>
+        <div class="lm-legend-row"><span class="gh-dot" style="background:#ffc857"></span> Opens within the hour</div>
+        <div class="lm-legend-row"><span class="gh-dot" style="background:#33546e"></span> Session closed</div>
+        <div class="lm-legend-row"><span class="gh-dot" style="background:#ff5470"></span> Bear flow / distribution</div>
+        <div class="lm-stats">
+          <div class="lm-stat"><span class="lm-stat-num" id="lmStatOpen">—</span><span class="lm-stat-lbl">MARKETS OPEN</span></div>
+          <div class="lm-stat"><span class="lm-stat-num" id="lmStatArcs">—</span><span class="lm-stat-lbl">FLOW ROUTES</span></div>
+          <div class="lm-stat"><span class="lm-stat-num" id="lmStatSun">—</span><span class="lm-stat-lbl">SUBSOLAR PT</span></div>
+        </div>
+      </div>
+
+      <!-- bottom-right: controls -->
+      <div class="lm-panel lm-controls">
+        <button class="gh-ctrl" id="lmRotate" title="Toggle rotation">◎ <span>Rotate</span></button>
+        <button class="gh-ctrl" id="lmFollowSun" title="Keep the daylight side facing you">☀ <span>Follow Sun</span></button>
+        <button class="gh-ctrl" id="lmArcs" title="Toggle flow arcs">≋ <span>Arcs</span></button>
+        <button class="gh-ctrl" id="lmReset" title="Reset view">⟲ <span>Reset</span></button>
+      </div>
+    </div>
+  </section>
+
   <!-- ── NEWS ─────────────────────────────────────────────────────── -->
   <section class="view" id="view-news">
     <div class="view-head">
@@ -464,6 +515,7 @@
 <script src="microstructure.js"></script>
 <script src="squawk.js"></script>
 <script src="globe.js"></script>
+<script src="livemap.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

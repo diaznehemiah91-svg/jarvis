@@ -69,6 +69,12 @@ smart money is moving.
   Rotational / Risk-Off, each with concrete day-trading actions.
 - **Sector heat maps** — 40 tickers across 12 sectors / 3 layers, color-coded
   by a composite of trend, sentiment, and flow.
+- **Live 3D Map** — a real-time planetary view: day/night terminator computed
+  from the actual sun position, 19 world exchanges with live open/pre/closed
+  session status (DST-correct, lunch breaks included), animated great-circle
+  arcs routing institutional flow between company HQs and the listing venue,
+  world session clocks, and a live flow feed. Press `M` (or `7`), say
+  *"live map"*, or pick it from the nav rail / command palette.
 - **Buy / Sell opportunities** — conviction-scored ideas with entry, target,
   stop, and risk/reward.
 - **Options ideas** — call/put suggestions with strike, expiry, and rationale.
