@@ -247,6 +247,14 @@
       new THREE.MeshBasicMaterial({ color: 0x2bd4ff, wireframe: true, transparent: true, opacity: 0.045 })
     ));
 
+    // Equatorial accent ring (orbital HUD feel)
+    const eqRing = new THREE.Mesh(
+      new THREE.RingGeometry(1.30, 1.306, 128),
+      new THREE.MeshBasicMaterial({ color: 0x2bd4ff, transparent: true, opacity: 0.10, side: THREE.DoubleSide, blending: THREE.AdditiveBlending })
+    );
+    eqRing.rotation.x = Math.PI / 2 + 0.35;
+    scene.add(eqRing);
+
     // Clouds (day side only look is approximated by low opacity)
     const cloudMesh = new THREE.Mesh(
       new THREE.SphereGeometry(1.014, 64, 64),
@@ -414,20 +422,33 @@
       arcs = [];
     }
 
+    // Arc colors carry meaning: type picks the palette, direction picks the hue.
+    const ARC_COLORS = {
+      WHALE_BLOCK:   { bull: 0x1fe0a0, bear: 0xff5470 },   // green / red
+      OPTIONS_SWEEP: { bull: 0x2bd4ff, bear: 0xe879f9 },   // cyan  / magenta
+      INSIDER_FLOW:  { bull: 0xffc857, bear: 0xff9f45 },   // gold  / amber
+    };
+
     // Route an alert: bullish flow streams INTO the listing venue,
     // bearish flow streams OUT of it (distribution).
     function setAlerts(alerts) {
       clearArcs();
-      const flows = (alerts || []).filter(a =>
-        ['WHALE_BLOCK', 'OPTIONS_SWEEP', 'INSIDER_FLOW'].includes(a.type) && a.data && a.data.ticker
-      ).slice(0, 16);
+      const seen = new Set();
+      const flows = (alerts || []).filter(a => {
+        if (!['WHALE_BLOCK', 'OPTIONS_SWEEP', 'INSIDER_FLOW'].includes(a.type) || !a.data || !a.data.ticker) return false;
+        const sig = `${a.type}|${a.data.ticker}|${a.data.direction}|${a.data.size_usd}`;
+        if (seen.has(sig)) return false;   // repeated scans can double-write alerts
+        seen.add(sig);
+        return true;
+      }).slice(0, 24);
 
       const nyse = EXCHANGES[0];
       flows.forEach((a, i) => {
         const hq = hqOf(a.data.ticker);
         if (!hq) return;
         const bull = /buy|bull|accum|call/i.test(String(a.data.direction || a.title || ''));
-        const col  = bull ? 0x1fe0a0 : 0xff5470;
+        const pal  = ARC_COLORS[a.type] || ARC_COLORS.WHALE_BLOCK;
+        const col  = bull ? pal.bull : pal.bear;
         const from = bull ? hq : [nyse.lat, nyse.lon];
         const to   = bull ? [nyse.lat, nyse.lon] : hq;
         const pts  = buildArcPoints(from, to);
@@ -462,12 +483,25 @@
           info: a,
         });
       });
-      arcGroup.visible = arcsVisible;
+      applyLayerVisibility();
       renderFlowFeed(flows);
       updateStatCounters();
     }
 
-    function setArcs(on) { arcsVisible = !!on; arcGroup.visible = arcsVisible; }
+    function setArcs(on) { arcsVisible = !!on; applyLayerVisibility(); }
+
+    // ── Layer modes: globe (all) · heat (tiles) · events (venues) · routes ──
+    let mode = 'globe';
+    function applyLayerVisibility() {
+      tileGroup.visible = mode === 'globe' || mode === 'heat';
+      exchGroup.visible = mode === 'globe' || mode === 'events';
+      arcGroup.visible  = arcsVisible && (mode === 'globe' || mode === 'routes');
+    }
+    function setMode(m) {
+      mode = ['globe', 'heat', 'events', 'routes'].includes(m) ? m : 'globe';
+      applyLayerVisibility();
+      return mode;
+    }
 
     // ── Tooltip ──────────────────────────────────────────────────────────
     const tooltip = document.createElement('div');
@@ -771,7 +805,7 @@
     animate();
 
     return {
-      setTiles, setAlerts, setArcs, setRotate, isRotating, reset, followSun, resize,
+      setTiles, setAlerts, setArcs, setMode, setRotate, isRotating, reset, followSun, resize,
       destroy() {
         cancelAnimationFrame(rafId);
         clearInterval(tClock); clearInterval(tStatus); clearInterval(tSun);

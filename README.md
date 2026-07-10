@@ -69,12 +69,27 @@ smart money is moving.
   Rotational / Risk-Off, each with concrete day-trading actions.
 - **Sector heat maps** — 40 tickers across 12 sectors / 3 layers, color-coded
   by a composite of trend, sentiment, and flow.
-- **Live 3D Map** — a real-time planetary view: day/night terminator computed
-  from the actual sun position, 19 world exchanges with live open/pre/closed
-  session status (DST-correct, lunch breaks included), animated great-circle
-  arcs routing institutional flow between company HQs and the listing venue,
-  world session clocks, and a live flow feed. Press `M` (or `7`), say
+- **Live 3D Map** — the home view: a real-time planetary command deck.
+  Day/night terminator computed from the actual sun position, 19 world
+  exchanges with live open/pre/closed session status (DST-correct, lunch
+  breaks included), animated great-circle arcs routing institutional flow
+  (color-coded by type: whale blocks green/red, sweeps cyan/magenta, insider
+  gold/amber), layer modes (3D Globe / Heat Map / Events / Trajectories),
+  world session clocks, global-overview stat chips with a VIX-driven threat
+  level, market regime, top conviction plays, a market heat-map grid, a live
+  headline strip, and the Discord squawk room. Press `M` (or `7`), say
   *"live map"*, or pick it from the nav rail / command palette.
+- **Discord integration** — two directions, both optional (Settings → KEYS):
+  - *Alert relay (outbound):* paste a channel **webhook URL** and JARVIS
+    pushes HIGH-priority whale blocks, sweeps, and insider prints into your
+    server as rich embeds — automatically after each sync, or on demand with
+    the map's **⇪ Relay alerts** button.
+  - *Squawk room feed (inbound):* add a **bot token + channel ID** (bot needs
+    *Read Message History*) and your trading room's live chatter streams into
+    the map HUD. Without credentials the panel runs in SIM mode with
+    synthetic chatter derived from the live alert stream.
+  - Env vars also work: `DISCORD_WEBHOOK_URL`, `DISCORD_BOT_TOKEN`,
+    `DISCORD_CHANNEL_ID`.
 - **Buy / Sell opportunities** — conviction-scored ideas with entry, target,
   stop, and risk/reward.
 - **Options ideas** — call/put suggestions with strike, expiry, and rationale.

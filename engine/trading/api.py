@@ -207,14 +207,47 @@ def getDataStatus():
 
 @eel.expose
 def setApiKey(provider: str = "finnhub", key: str = ""):
-    """Save an API key/token supplied from the Settings panel (Finnhub / X)."""
+    """Save an API key/token supplied from the Settings panel (Finnhub / X / Discord)."""
     if provider == "finnhub":
         from engine.trading import finnhub_client as finnhub
         return json.dumps(finnhub.set_key(key))
     if provider == "x":
         from engine.trading import news_aggregator as na
         return json.dumps(na.set_x_token(key))
+    if provider.startswith("discord_"):
+        from engine.trading import discord_client as dc
+        return json.dumps(dc.set_setting(provider.replace("discord_", "", 1), key))
     return json.dumps({"error": f"unknown provider {provider}"})
+
+
+# ── Discord squawk room ───────────────────────────────────────────────────────
+
+@eel.expose
+def getDiscordStatus():
+    from engine.trading import discord_client as dc
+    return json.dumps(dc.status())
+
+
+@eel.expose
+def getDiscordFeed(limit: int = 15):
+    from engine.trading import discord_client as dc
+    return json.dumps(dc.get_feed(limit))
+
+
+@eel.expose
+def sendDiscordTest():
+    from engine.trading import discord_client as dc
+    return json.dumps(dc.send_message(
+        "✅ **JARVIS is connected.** Alert relay from the Live 3D Map is armed."))
+
+
+@eel.expose
+def relayAlertsToDiscord():
+    """Relay HIGH/CRITICAL flow alerts to the configured webhook (deduped)."""
+    from engine.trading import discord_client as dc
+    from engine.trading.alerts import generate_full_briefing
+    briefing = generate_full_briefing()
+    return json.dumps(dc.relay_alerts(briefing.get("alerts", [])))
 
 
 # ── Background refresh ────────────────────────────────────────────────────────
