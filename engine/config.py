@@ -59,3 +59,31 @@ _DISCORD_TOKEN_HARDCODED = ""  # e.g. "MjM4NDk0NjM1MTk2MDI..."
 DISCORD_BOT_TOKEN = os.environ.get("DISCORD_BOT_TOKEN", "") or _DISCORD_TOKEN_HARDCODED
 DISCORD_CHANNEL = "honey-drip"  # Channel to monitor for trading signals
 DISCORD_AUTO_START = True  # Auto-start bot when Jarvis launches
+
+# ── Slack Bot (for trading intelligence in Slack workspace) ──────────────────
+# Get tokens from Slack API: https://api.slack.com/apps
+#
+# Setup:
+#   1) Create Slack app at https://api.slack.com/apps
+#   2) Enable Socket Mode
+#   3) Get Bot Token (xoxb-...) and App Token (xapp-...)
+#   4) Set SLACK_BOT_TOKEN and SLACK_APP_TOKEN env vars
+#   5) Bot will post: Discord alerts, daily briefings, position updates, market sentiment
+#
+# Two ways to provide it (either works):
+#   1) Set the SLACK_BOT_TOKEN and SLACK_APP_TOKEN environment variables (recommended), OR
+#   2) Paste your tokens directly between the quotes on the _HARDCODED lines below.
+_SLACK_BOT_TOKEN_HARDCODED = ""  # e.g. "xoxb-1234567890..."
+_SLACK_APP_TOKEN_HARDCODED = ""  # e.g. "xapp-abcd1234..."
+SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "") or _SLACK_BOT_TOKEN_HARDCODED
+SLACK_APP_TOKEN = os.environ.get("SLACK_APP_TOKEN", "") or _SLACK_APP_TOKEN_HARDCODED
+SLACK_AUTO_START = True  # Auto-start Slack bot with Jarvis
+
+# Slack channels for different intelligence streams
+SLACK_CHANNELS = {
+    "trading-alerts": "Discord alerts & breakout signals",
+    "trading-briefing": "Daily trading briefings & analysis",
+    "positions": "Real-time position updates & P&L",
+    "market-sentiment": "Market sentiment & regime analysis",
+    "risk-alerts": "Position protection & risk warnings",
+}

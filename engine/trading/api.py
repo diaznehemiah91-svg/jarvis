@@ -259,3 +259,160 @@ def triggerBackgroundRefresh():
     t = threading.Thread(target=_background_refresh, daemon=True)
     t.start()
     return json.dumps({"status": "refresh_started"})
+
+
+# ── Slack Integration Endpoints ──────────────────────────────────────────────
+
+@eel.expose
+def postDiscordAlertToSlack(alert_data):
+    """Post a Discord alert to Slack trading-alerts channel
+
+    Args:
+        alert_data: Dict with alert info (ticker, price, direction, source, etc)
+    """
+    try:
+        from engine.trading.slack_client import get_slack_bot
+        bot = get_slack_bot()
+        bot.post_discord_alert(alert_data)
+        return json.dumps({"status": "posted", "channel": "trading-alerts"})
+    except Exception as e:
+        return json.dumps({"status": "error", "message": str(e)})
+
+
+@eel.expose
+def postDailyBriefingToSlack(briefing_data):
+    """Post daily trading briefing to Slack trading-briefing channel
+
+    Args:
+        briefing_data: Dict with daily stats (trades, P&L, win_rate, etc)
+    """
+    try:
+        from engine.trading.slack_client import get_slack_bot
+        bot = get_slack_bot()
+        bot.post_daily_briefing(briefing_data)
+        return json.dumps({"status": "posted", "channel": "trading-briefing"})
+    except Exception as e:
+        return json.dumps({"status": "error", "message": str(e)})
+
+
+@eel.expose
+def postPositionUpdateToSlack(position_data):
+    """Post position update to Slack positions channel
+
+    Args:
+        position_data: Dict with position info (symbol, qty, price, P&L, etc)
+    """
+    try:
+        from engine.trading.slack_client import get_slack_bot
+        bot = get_slack_bot()
+        bot.post_position_update(position_data)
+        return json.dumps({"status": "posted", "channel": "positions"})
+    except Exception as e:
+        return json.dumps({"status": "error", "message": str(e)})
+
+
+@eel.expose
+def postMarketSentimentToSlack(sentiment_data):
+    """Post market sentiment analysis to Slack market-sentiment channel
+
+    Args:
+        sentiment_data: Dict with sentiment score, bullish/bearish count, etc
+    """
+    try:
+        from engine.trading.slack_client import get_slack_bot
+        bot = get_slack_bot()
+        bot.post_market_sentiment(sentiment_data)
+        return json.dumps({"status": "posted", "channel": "market-sentiment"})
+    except Exception as e:
+        return json.dumps({"status": "error", "message": str(e)})
+
+
+@eel.expose
+def postRiskAlertToSlack(risk_data):
+    """Post risk/position protection alert to Slack risk-alerts channel
+
+    Args:
+        risk_data: Dict with alert info (change, recommendation, affected_positions)
+    """
+    try:
+        from engine.trading.slack_client import get_slack_bot
+        bot = get_slack_bot()
+        bot.post_risk_alert(risk_data)
+        return json.dumps({"status": "posted", "channel": "risk-alerts"})
+    except Exception as e:
+        return json.dumps({"status": "error", "message": str(e)})
+
+
+@eel.expose
+def getSlackStatus():
+    """Check Slack bot connection status"""
+    try:
+        from engine.trading.slack_client import get_slack_bot
+        bot = get_slack_bot()
+        return json.dumps({"status": "connected", "app": "JarvisSlackBot"})
+    except Exception as e:
+        return json.dumps({"status": "disconnected", "error": str(e)})
+
+
+@eel.expose
+def getDiscordAlertsFromSlack(limit=10):
+    """Fetch recent Discord alerts from Slack trading-alerts channel
+
+    Args:
+        limit: Number of recent alerts to return
+    """
+    try:
+        from engine.trading.slack_client import get_slack_bot
+        bot = get_slack_bot()
+        # Get conversation history
+        result = bot.app.client.conversations_history(
+            channel="trading-alerts",
+            limit=limit
+        )
+        messages = result.get("messages", [])
+        return json.dumps({
+            "status": "success",
+            "count": len(messages),
+            "alerts": messages
+        })
+    except Exception as e:
+        return json.dumps({"status": "error", "message": str(e)})
+
+
+@eel.expose
+def getLatestBreakoutAlert():
+    """Get the most recent breakout alert from Slack"""
+    try:
+        from engine.trading.slack_client import get_slack_bot
+        bot = get_slack_bot()
+        result = bot.app.client.conversations_history(
+            channel="trading-alerts",
+            limit=5
+        )
+        messages = result.get("messages", [])
+        # Return the first (most recent) message
+        return json.dumps({
+            "status": "success",
+            "alert": messages[0] if messages else None
+        })
+    except Exception as e:
+        return json.dumps({"status": "error", "message": str(e)})
+
+
+@eel.expose
+def getSlackChannels():
+    """Get list of Jarvis Slack channels"""
+    try:
+        channels = {
+            "trading-alerts": "Discord alerts & breakout signals",
+            "trading-briefing": "Daily trading briefings & analysis",
+            "positions": "Real-time position updates & P&L",
+            "market-sentiment": "Market sentiment & regime analysis",
+            "risk-alerts": "Position protection & risk warnings",
+        }
+        return json.dumps({
+            "status": "success",
+            "channels": channels
+        })
+    except Exception as e:
+        return json.dumps({"status": "error", "message": str(e)})
