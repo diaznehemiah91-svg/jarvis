@@ -24,6 +24,7 @@ const State = {
 let globeInitialized = false;   // heatmap-view globe
 let ovGlobe = null;             // overview hero globe instance
 let hmGlobe = null;             // heatmap-view globe instance
+let liveMap = null;             // live 3D map instance (worldmap view)
 
 // ── eel call helper (works with real eel and the demo shim) ──────────────────
 function call(fn, ...args) {
@@ -49,6 +50,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   initSquawk();
   initGlobeHero();
   initNewsRail();
+  initRoute();
+  requestWakeLock();
   updateMarketStatus();
   setInterval(updateMarketStatus, 30000);
 
@@ -100,6 +103,7 @@ async function loadAll() {
   renderMiniHeat();
   renderOverviewGlobe();
   if (globeInitialized) renderGlobe(State.layerFilter);
+  renderLiveMap();
   renderOpportunities();
   renderOptions();
   renderFlow();
@@ -466,6 +470,204 @@ function renderGlobeMovers(tiles, layerFilter) {
   }).join('') || '<div style="color:var(--text-faint);padding:8px 4px;font-size:12px">No data — sync first.</div>';
 }
 
+// ════ LIVE 3D MAP VIEW ════════════════════════════════════════════════════════
+function initLiveMap() {
+  if (liveMap || typeof LiveMap === 'undefined' || !LiveMap.create) return;
+  liveMap = LiveMap.create('lmStage', { onClick: openDrawer });
+  if (!liveMap) return;
+
+  const rot = document.getElementById('lmRotate');
+  if (rot) rot.addEventListener('click', () => liveMap.setRotate(!liveMap.isRotating()));
+  const sun = document.getElementById('lmFollowSun');
+  if (sun) sun.addEventListener('click', () => liveMap.followSun());
+  const rst = document.getElementById('lmReset');
+  if (rst) rst.addEventListener('click', () => liveMap.reset());
+  const arcs = document.getElementById('lmArcs');
+  if (arcs) {
+    arcs.classList.add('active');
+    arcs.addEventListener('click', () => {
+      arcs.classList.toggle('active');
+      liveMap.setArcs(arcs.classList.contains('active'));
+    });
+  }
+
+  // Layer mode tabs: 3D GLOBE / HEAT MAP / EVENTS / TRAJECTORIES
+  document.querySelectorAll('[data-lmmode]').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('[data-lmmode]').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    liveMap.setMode(b.dataset.lmmode);
+  }));
+
+  // Discord squawk controls
+  const relay = document.getElementById('lmDiscordRelay');
+  if (relay) relay.addEventListener('click', relayDiscordNow);
+  const setup = document.getElementById('lmDiscordSetup');
+  if (setup) setup.addEventListener('click', () => {
+    openSettings();
+    setTimeout(() => document.getElementById('discordWebhookInput')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150);
+  });
+
+  loadDiscord();
+  setInterval(loadDiscord, 60 * 1000);
+  renderLiveMap();
+}
+
+function renderLiveMap() {
+  if (liveMap) {
+    liveMap.setTiles(allHeatmapTiles());
+    liveMap.setAlerts(State.briefing?.alerts || []);
+  }
+  renderLiveMapIntel();
+}
+
+// JARVIS intel folded into the map HUD: overview chips, threat level, regime,
+// top plays, heat grid, latest headline and the bottom live-feed strip.
+function renderLiveMapIntel() {
+  const nameEl = document.getElementById('lmRegimeName');
+  if (!nameEl) return;
+
+  // ── Global overview chips + threat level (from real alert/VIX data) ──
+  const alerts = State.briefing?.alerts || [];
+  const tiles = allHeatmapTiles();
+  const high = alerts.filter(a => ['HIGH', 'CRITICAL'].includes(String(a.priority || '').toUpperCase())).length;
+  const ev = document.getElementById('lmOvEvents');
+  if (ev) ev.textContent = alerts.length;
+  const pts = document.getElementById('lmOvPoints');
+  if (pts) pts.textContent = (tiles.length * 6).toLocaleString();   // score, conviction, price, trend, sentiment, flow per ticker
+  const ha = document.getElementById('lmOvAlerts');
+  if (ha) ha.textContent = high;
+
+  const r = State.regime;
+  const vix = r?.vix_level != null ? Number(r.vix_level) : null;
+  const threat = vix == null ? null
+    : vix < 15 ? { label: 'LOW', pct: 18, color: 'var(--green)' }
+    : vix < 20 ? { label: 'GUARDED', pct: 42, color: 'var(--gold)' }
+    : vix < 28 ? { label: 'ELEVATED', pct: 70, color: 'var(--orange, #ff9f45)' }
+    : { label: 'HIGH', pct: 94, color: 'var(--red)' };
+  const tl = document.getElementById('lmThreatLabel');
+  const tb = document.getElementById('lmThreatBar');
+  if (tl && threat) { tl.textContent = threat.label; tl.style.color = threat.color; }
+  if (tb && threat) { tb.style.width = threat.pct + '%'; tb.style.background = threat.color; }
+
+  // ── Market regime ──
+  if (r) {
+    const label = (r.regime_label || '—').split('/')[0].trim();
+    nameEl.textContent = label;
+    nameEl.style.color = r.regime_score >= 0.15 ? 'var(--green)'
+                       : r.regime_score <= -0.15 ? 'var(--red)' : 'var(--gold)';
+    document.getElementById('lmRegimeSub').textContent =
+      `Composite ${Number(r.regime_score).toFixed(2)} · VIX ${vix != null ? vix.toFixed(1) : '—'}`;
+  }
+
+  // ── Top conviction plays ──
+  const buys = State.opportunities?.buys || [];
+  document.getElementById('lmPlays').innerHTML = buys.slice(0, 5).map(o => `
+    <div class="lm-play" onclick="openDrawer('${o.ticker}')">
+      <span class="lm-play-sym">${o.ticker}</span>
+      <span class="lm-play-act" style="color:${actionColor(o.action)}">${o.action}</span>
+      <div class="lm-play-bar"><i style="width:${o.conviction || 0}%;background:${actionColor(o.action)}"></i></div>
+      <span class="lm-play-conv">${o.conviction || 0}%</span>
+    </div>`).join('') || '<div class="lm-feed-empty">Syncing conviction plays…</div>';
+
+  // ── Heat map mini-grid: top 9 movers by |score|, colored like the tiles ──
+  const grid = document.getElementById('lmHeatGrid');
+  if (grid) {
+    // a ticker can live in several sectors — keep its strongest tile only
+    const byTicker = {};
+    tiles.forEach(t => {
+      if (!byTicker[t.ticker] || Math.abs(t.net_score) > Math.abs(byTicker[t.ticker].net_score)) byTicker[t.ticker] = t;
+    });
+    const movers = Object.values(byTicker).sort((a, b) => Math.abs(b.net_score) - Math.abs(a.net_score)).slice(0, 9);
+    grid.innerHTML = movers.map(t => {
+      const up = t.net_score >= 0;
+      const alpha = 0.12 + Math.min(0.5, Math.abs(t.net_score)) * 0.7;
+      return `<div class="lm-heat-tile" onclick="openDrawer('${t.ticker}')"
+        style="background:rgba(${up ? '31,224,160' : '255,84,112'},${alpha.toFixed(2)});
+               border-color:rgba(${up ? '31,224,160' : '255,84,112'},0.35)">
+        <span class="lm-heat-sym">${t.ticker}</span>
+        <span class="lm-heat-val">${up ? '+' : ''}${Number(t.net_score).toFixed(2)}</span>
+      </div>`;
+    }).join('') || '<div class="lm-feed-empty">Sync to load tiles.</div>';
+  }
+
+  // ── Latest headline + bottom live-feed strip ──
+  const articles = newsArticles('power').length ? newsArticles('power') : newsArticles('market');
+  const top = articles[0];
+  const h = document.getElementById('lmHeadline');
+  if (h && top) {
+    h.innerHTML = `<span class="lm-headline-tag">⚡</span> ${newsField(top).title}`;
+    h.style.display = 'block';
+  }
+  const track = document.getElementById('lmNewsTrack');
+  if (track && articles.length) {
+    track.innerHTML = articles.slice(0, 8).map(raw => {
+      const a = newsField(raw);
+      const t = a.ts ? new Date(a.ts * 1000).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) : '';
+      return `<div class="lm-news-card" ${a.url ? `onclick="window.open('${a.url}','_blank')"` : ''}>
+        <span class="lm-news-meta">${t}${t && a.source ? ' | ' : ''}${a.source}</span>
+        <span class="lm-news-title">${a.title}</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+// ════ DISCORD SQUAWK ROOM ═════════════════════════════════════════════════════
+async function loadDiscord() {
+  const [feed, status] = await Promise.all([
+    call('getDiscordFeed', 12),
+    call('getDiscordStatus'),
+  ]);
+  State.discord = feed;
+  State.discordStatus = status;
+  renderDiscord();
+}
+
+function renderDiscord() {
+  const body = document.getElementById('lmDiscordBody');
+  if (!body) return;
+  const feed = State.discord;
+  const mode = document.getElementById('lmDiscordMode');
+  if (mode) {
+    const live = feed?.mode === 'live';
+    mode.textContent = '';
+    mode.className = 'lm-discord-mode ' + (live ? 'live' : 'sim');
+    mode.innerHTML = `<span class="lm-discord-dot"></span>${live ? 'LIVE' : 'SIM'}`;
+    mode.title = live ? 'Streaming from your Discord channel' : 'Simulated chatter — connect a bot in Setup for the live channel';
+  }
+  const msgs = feed?.messages || [];
+  if (!msgs.length) {
+    body.innerHTML = '<div class="lm-feed-empty">No messages yet.</div>';
+    return;
+  }
+  body.innerHTML = msgs.map(m => {
+    const t = m.ts ? _timeAgo(new Date(m.ts)) : '';
+    return `<div class="lm-dc-msg">
+      <div class="lm-dc-head">
+        <span class="lm-dc-avatar">${(m.author || '?')[0].toUpperCase()}</span>
+        <span class="lm-dc-author">${m.author}${m.bot ? ' <i class="lm-dc-bot">BOT</i>' : ''}</span>
+        <span class="lm-dc-time">${t}</span>
+      </div>
+      <div class="lm-dc-text">${escapeHtml(m.content)}</div>
+    </div>`;
+  }).join('');
+}
+
+async function relayDiscordNow() {
+  if (!State.discordStatus?.webhook) {
+    toast('Discord', 'No webhook configured — open Setup to connect your server.', 'warn');
+    openSettings();
+    return;
+  }
+  const res = await call('relayAlertsToDiscord');
+  if (res?.sent > 0) toast('Discord', `Relayed ${res.sent} HIGH-priority alert${res.sent > 1 ? 's' : ''} to your server.`, 'success');
+  else toast('Discord', 'Nothing new to relay — all HIGH alerts already sent.', 'info');
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 // Track last announced headline to avoid re-squawking on re-render
 let _lastSquawkHeadline = '';
 
@@ -478,6 +680,7 @@ async function loadNews() {
   State.news = { power, market };
   renderNews();
   renderNewsRail();
+  renderLiveMapIntel();
 }
 
 // ════ OVERVIEW BREAKING-NEWS RAIL ═════════════════════════════════════════════
@@ -948,8 +1151,36 @@ function initNav() {
   }));
 }
 
+// ════ URL ROUTING & STAY-LIVE ═══════════════════════════════════════════════
+// Deep links: /command/#worldmap, #overview, #heatmap, #opportunities, …
+// The Live 3D Map is the home view — JARVIS boots straight onto the planet.
+const ROUTES = ['worldmap', 'overview', 'heatmap', 'opportunities', 'options', 'flow', 'news'];
+const DEFAULT_VIEW = 'worldmap';
+
+function initRoute() {
+  const v = (location.hash || '').replace('#', '');
+  switchView(ROUTES.includes(v) ? v : DEFAULT_VIEW);
+  window.addEventListener('hashchange', () => {
+    const h = location.hash.replace('#', '');
+    if (ROUTES.includes(h) && h !== State.view) switchView(h);
+  });
+}
+
+// Screen Wake Lock — keeps the dashboard awake on an always-on display.
+let _wakeLock = null;
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    _wakeLock = await navigator.wakeLock.request('screen');
+  } catch (e) { /* battery saver / hidden tab — retried on visibilitychange */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') requestWakeLock();
+});
+
 function switchView(view) {
   State.view = view;
+  if (location.hash !== '#' + view) history.replaceState(null, '', '#' + view);
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + view)?.classList.add('active');
   document.querySelectorAll('.rail-btn[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
@@ -961,6 +1192,10 @@ function switchView(view) {
       hmGlobe = Globe.create('globeStage', { onClick: openDrawer });
       if (State.heatmap) renderGlobe(State.layerFilter);
     }
+  }
+  if (view === 'worldmap') {
+    initLiveMap();
+    if (liveMap) liveMap.resize();
   }
   if (view === 'news' && !State.news) {
     loadNews();
@@ -996,6 +1231,9 @@ function initSettings() {
     if (e.key === 'Enter') saveFinnhubKey();
   });
 
+  // Discord
+  initDiscordSettings();
+
   // X / Twitter token
   document.getElementById('xTokenSave').addEventListener('click', saveXToken);
   document.getElementById('xTokenClear').addEventListener('click', clearXToken);
@@ -1029,9 +1267,12 @@ function openSettings() {
   document.getElementById('settingsOverlay').classList.add('open');
   document.getElementById('settingsMsg').textContent = '';
   document.getElementById('xMsg').textContent = '';
+  const dm = document.getElementById('discordMsg');
+  if (dm) dm.textContent = '';
   document.getElementById('finnhubKeyInput').focus();
   renderSettingsStatus(State.dataStatus);
   loadNewsStatus();
+  refreshDiscordStatusLine();
   // Reflect current squawk state
   if (window.Squawk) {
     const sq = document.getElementById('squawkToggle');
@@ -1039,6 +1280,81 @@ function openSettings() {
     if (sq) sq.checked = Squawk.enabled;
     if (st) st.textContent = Squawk.enabled ? 'ON' : 'OFF';
   }
+}
+
+// ── Discord settings (webhook relay + bot channel feed) ──────────────────────
+function initDiscordSettings() {
+  const save = document.getElementById('discordSave');
+  if (!save) return;
+  save.addEventListener('click', saveDiscordSettings);
+  document.getElementById('discordClear').addEventListener('click', clearDiscordSettings);
+  document.getElementById('discordTest').addEventListener('click', testDiscordWebhook);
+  const eye = (btnId, inpId) => document.getElementById(btnId)?.addEventListener('click', () => {
+    const inp = document.getElementById(inpId);
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+  });
+  eye('discordWebhookToggle', 'discordWebhookInput');
+  eye('discordBotToggle', 'discordBotInput');
+}
+
+async function saveDiscordSettings() {
+  const msg = document.getElementById('discordMsg');
+  msg.textContent = 'Saving…';
+  const url = document.getElementById('discordWebhookInput').value.trim();
+  const bot = document.getElementById('discordBotInput').value.trim();
+  const chan = document.getElementById('discordChannelInput').value.trim();
+  // Only push the fields the user actually filled in, so an existing
+  // credential isn't wiped by leaving its box blank.
+  let st = null;
+  if (url)  st = await call('setApiKey', 'discord_webhook', url);
+  if (bot)  st = await call('setApiKey', 'discord_bot_token', bot);
+  if (chan) st = await call('setApiKey', 'discord_channel_id', chan);
+  if (!st) { msg.textContent = 'Nothing to save — fill in at least one field.'; return; }
+  State.discordStatus = st;
+  refreshDiscordStatusLine(st);
+  const bits = [];
+  if (st.webhook) bits.push(st.webhook_valid === false ? 'webhook saved (validation failed — check the URL)' : 'webhook connected');
+  if (st.read_live) bits.push(st.bot_valid === false ? 'bot saved (channel fetch failed — check token/ID/permissions)' : 'channel feed live');
+  msg.textContent = bits.length ? '✓ ' + bits.join(' · ') : 'Saved.';
+  loadDiscord();
+}
+
+async function clearDiscordSettings() {
+  await call('setApiKey', 'discord_webhook', '');
+  await call('setApiKey', 'discord_bot_token', '');
+  const st = await call('setApiKey', 'discord_channel_id', '');
+  State.discordStatus = st;
+  ['discordWebhookInput', 'discordBotInput', 'discordChannelInput'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('discordMsg').textContent = 'Discord credentials cleared — squawk panel back in SIM mode.';
+  refreshDiscordStatusLine(st);
+  loadDiscord();
+}
+
+async function testDiscordWebhook() {
+  const msg = document.getElementById('discordMsg');
+  msg.textContent = 'Sending test message…';
+  const res = await call('sendDiscordTest');
+  msg.textContent = res?.sent
+    ? '✓ Test message delivered — check your Discord channel.'
+    : `✗ Send failed: ${res?.error || 'no webhook configured'}`;
+}
+
+async function refreshDiscordStatusLine(st) {
+  st = st || await call('getDiscordStatus');
+  State.discordStatus = st;
+  const dot = document.querySelector('#discordStatus .settings-status-dot');
+  const txt = document.getElementById('discordStatusText');
+  if (!st || !txt) return;
+  const parts = [];
+  if (st.webhook) parts.push('alert relay armed');
+  if (st.read_live) parts.push('channel feed LIVE');
+  if (dot) dot.style.background = parts.length ? 'var(--green)' : 'var(--text-faint)';
+  txt.innerHTML = parts.length
+    ? `<b style="color:var(--green)">CONNECTED</b> — ${parts.join(' · ')}`
+    : 'Discord dormant — squawk panel running in SIM mode';
 }
 
 async function loadNewsStatus() {
@@ -1136,6 +1452,13 @@ async function doSync() {
   await new Promise(r => setTimeout(r, 1500));
   await loadAll();
   loadNews();
+  loadDiscord();
+  // Auto-relay fresh HIGH-priority alerts to Discord if a webhook is armed.
+  if (State.discordStatus?.webhook) {
+    call('relayAlertsToDiscord').then(res => {
+      if (res?.sent > 0) toast('Discord', `Relayed ${res.sent} new alert${res.sent > 1 ? 's' : ''} to your server.`, 'success');
+    });
+  }
   btn.querySelector('.rail-ico').style.animation = '';
   toast('Synced', 'All intelligence feeds updated.', 'success');
 }
@@ -1175,6 +1498,7 @@ function handleVoiceCommand(text) {
   setTimeout(() => Voice.setHud(false), 2500);
 
   // Navigation
+  if (/(world ?map|live ?map|3 ?d ?map|planet|earth)/.test(t)) { switchView('worldmap'); return Voice.speak('Bringing up the live planetary map.'); }
   if (/(heat ?map|sector|globe)/.test(t)) { switchView('heatmap'); return Voice.speak('Opening global sector map.'); }
   if (/(option)/.test(t)) { switchView('options'); return Voice.speak('Showing options ideas, bull and bear.'); }
   if (/(opportunit|idea|buy|sell|long|short)/.test(t) && !/regime/.test(t)) { switchView('opportunities'); return Voice.speak('Here are the opportunities.'); }
@@ -1536,6 +1860,7 @@ function buildPaletteCommands() {
   const cmds = [
     { type: 'cmd', title: 'Go to Overview', sub: 'View', ico: '◳', act: () => switchView('overview') },
     { type: 'cmd', title: 'Go to Heat Maps', sub: 'View', ico: '▦', act: () => switchView('heatmap') },
+    { type: 'cmd', title: 'Go to Live 3D Map', sub: 'View', ico: '◍', act: () => switchView('worldmap') },
     { type: 'cmd', title: 'Go to Opportunities', sub: 'View', ico: '◈', act: () => switchView('opportunities') },
     { type: 'cmd', title: 'Go to Options', sub: 'View', ico: '⟐', act: () => switchView('options') },
     { type: 'cmd', title: 'Go to Flow', sub: 'View', ico: '≋', act: () => switchView('flow') },
@@ -1588,7 +1913,11 @@ function initKeyboard() {
       else if (e.key === 'Enter') { e.preventDefault(); runPalette(paletteSel); }
       return;
     }
-    if (document.activeElement.tagName === 'INPUT') return;
+    if (document.activeElement.tagName === 'INPUT') {
+      // Escape still closes the settings modal even when typing in a key field
+      if (e.key === 'Escape') { closeSettings(); document.activeElement.blur(); }
+      return;
+    }
     if (e.key === 'Escape') {
       if (drawerOpen) { closeDrawer(); openPalette(); }
       else { closeSettings(); Voice.setHud(false); }
@@ -1597,8 +1926,9 @@ function initKeyboard() {
     // Arrow Up/Down cycle through opportunities
     if (e.key === 'ArrowDown') { e.preventDefault(); _cycleOpportunity(1); return; }
     if (e.key === 'ArrowUp')   { e.preventDefault(); _cycleOpportunity(-1); return; }
-    const map = { '1': 'overview', '2': 'heatmap', '3': 'opportunities', '4': 'options', '5': 'flow', '6': 'news' };
+    const map = { '1': 'overview', '2': 'heatmap', '3': 'opportunities', '4': 'options', '5': 'flow', '6': 'news', '7': 'worldmap' };
     if (map[e.key]) switchView(map[e.key]);
+    if (e.key.toLowerCase() === 'm') switchView('worldmap');
     if (e.key.toLowerCase() === 'v') Voice.startListening(handleVoiceCommand);
     if (e.key.toLowerCase() === 'b') speakBriefing();
     if (e.key.toLowerCase() === 'r') doSync();

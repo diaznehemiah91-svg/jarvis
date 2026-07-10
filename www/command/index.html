@@ -79,6 +79,9 @@
   <button class="rail-btn" data-view="heatmap" title="Sector Heat Maps">
     <span class="rail-ico">▦</span><span class="rail-lbl">Heat Maps</span>
   </button>
+  <button class="rail-btn" data-view="worldmap" title="Live 3D Map (M)">
+    <span class="rail-ico">◍</span><span class="rail-lbl">Live Map</span>
+  </button>
   <button class="rail-btn" data-view="opportunities" title="Opportunities">
     <span class="rail-ico">◈</span><span class="rail-lbl">Ideas</span>
   </button>
@@ -278,6 +281,108 @@
     </div>
   </section>
 
+  <!-- ── LIVE 3D MAP ──────────────────────────────────────────────── -->
+  <section class="view" id="view-worldmap">
+    <div class="livemap-wrap">
+      <div class="livemap-stage" id="lmStage"></div>
+
+      <!-- ── LEFT COLUMN: mission intel stack ──────────────────────── -->
+      <aside class="lm-panel lm-left glass">
+        <div class="lm-title-block">
+          <div class="lm-title-main">LIVE 3D MAP</div>
+          <div class="lm-title-sub">PLANETARY MARKET OPERATIONS</div>
+          <div class="lm-utc" id="lmUtc">UTC --:--:--</div>
+        </div>
+
+        <!-- Global overview stat chips -->
+        <div class="lm-side-head">◆ GLOBAL OVERVIEW</div>
+        <div class="lm-ov-grid">
+          <div class="lm-ov-chip"><span class="lm-ov-num cyan" id="lmOvEvents">—</span><span class="lm-ov-lbl">ACTIVE EVENTS</span></div>
+          <div class="lm-ov-chip"><span class="lm-ov-num green" id="lmStatOpen">—</span><span class="lm-ov-lbl">MARKETS OPEN</span></div>
+          <div class="lm-ov-chip"><span class="lm-ov-num violet" id="lmOvPoints">—</span><span class="lm-ov-lbl">DATA POINTS</span></div>
+          <div class="lm-ov-chip"><span class="lm-ov-num red" id="lmOvAlerts">—</span><span class="lm-ov-lbl">HIGH ALERTS</span></div>
+        </div>
+        <div class="lm-threat">
+          <span class="lm-threat-lbl">THREAT LEVEL</span>
+          <span class="lm-threat-state" id="lmThreatLabel">—</span>
+          <div class="lm-threat-track"><i id="lmThreatBar"></i></div>
+        </div>
+
+        <!-- Market regime -->
+        <div class="lm-side-head lm-intel-gap">◆ MARKET REGIME</div>
+        <div class="lm-regime-name" id="lmRegimeName">ANALYZING…</div>
+        <div class="lm-regime-sub" id="lmRegimeSub">—</div>
+
+        <!-- Top conviction plays -->
+        <div class="lm-side-head lm-intel-gap">◈ TOP CONVICTION PLAYS</div>
+        <div class="lm-plays" id="lmPlays">
+          <div class="lm-feed-empty">Syncing conviction plays…</div>
+        </div>
+
+        <!-- Market heat map mini-grid -->
+        <div class="lm-side-head lm-intel-gap">▦ MARKET HEAT MAP</div>
+        <div class="lm-heat-grid" id="lmHeatGrid"></div>
+
+        <div class="lm-headline" id="lmHeadline" style="display:none"></div>
+
+        <!-- Telemetry footer -->
+        <div class="lm-stats">
+          <div class="lm-stat"><span class="lm-stat-num" id="lmStatArcs">—</span><span class="lm-stat-lbl">FLOW ROUTES</span></div>
+          <div class="lm-stat"><span class="lm-stat-num" id="lmStatSun">—</span><span class="lm-stat-lbl">SUBSOLAR PT</span></div>
+        </div>
+      </aside>
+
+      <!-- ── TOP CENTER: session clocks + layer modes ──────────────── -->
+      <div class="lm-panel lm-clocks glass" id="lmClocks"></div>
+      <div class="lm-panel lm-modes glass" id="lmModes">
+        <button class="lm-mode active" data-lmmode="globe">◍ 3D GLOBE</button>
+        <button class="lm-mode" data-lmmode="heat">▦ HEAT MAP</button>
+        <button class="lm-mode" data-lmmode="events">◆ EVENTS</button>
+        <button class="lm-mode" data-lmmode="routes">≋ TRAJECTORIES</button>
+      </div>
+
+      <!-- ── RIGHT COLUMN: sessions · flow · discord ───────────────── -->
+      <aside class="lm-panel lm-side glass">
+        <div class="lm-side-head">◆ EXCHANGE SESSIONS</div>
+        <div class="lm-exch-list" id="lmExchList"></div>
+
+        <div class="lm-side-head lm-side-head-feed">≋ LIVE FLOW ROUTES</div>
+        <div class="lm-feed" id="lmFeed">
+          <div class="lm-feed-empty">Scanning institutional flow…</div>
+        </div>
+
+        <!-- Discord squawk room -->
+        <div class="lm-side-head lm-side-head-feed lm-discord-head">
+          <span class="lm-discord-glyph">🗪</span> DISCORD SQUAWK
+          <span class="lm-discord-mode sim" id="lmDiscordMode"><span class="lm-discord-dot"></span>SIM</span>
+        </div>
+        <div class="lm-discord" id="lmDiscordBody">
+          <div class="lm-feed-empty">Connecting to squawk room…</div>
+        </div>
+        <div class="lm-discord-foot">
+          <button class="lm-discord-btn" id="lmDiscordRelay" title="Push HIGH-priority alerts to your Discord server">⇪ Relay alerts</button>
+          <button class="lm-discord-btn" id="lmDiscordSetup" title="Connect bot / webhook">⚙ Setup</button>
+        </div>
+      </aside>
+
+      <!-- ── BOTTOM CENTER: live headline feed strip ───────────────── -->
+      <div class="lm-panel lm-newsstrip glass" id="lmNewsStrip">
+        <div class="lm-newsstrip-tag"><span class="gh-live-dot"></span>LIVE FEED</div>
+        <div class="lm-newsstrip-track" id="lmNewsTrack">
+          <div class="lm-feed-empty">Fetching live headlines…</div>
+        </div>
+      </div>
+
+      <!-- ── BOTTOM RIGHT: view controls ───────────────────────────── -->
+      <div class="lm-panel lm-controls">
+        <button class="gh-ctrl" id="lmRotate" title="Toggle rotation">◎ <span>Rotate</span></button>
+        <button class="gh-ctrl" id="lmFollowSun" title="Keep the daylight side facing you">☀ <span>Follow Sun</span></button>
+        <button class="gh-ctrl" id="lmArcs" title="Toggle flow arcs">≋ <span>Arcs</span></button>
+        <button class="gh-ctrl" id="lmReset" title="Reset view">⟲ <span>Reset</span></button>
+      </div>
+    </div>
+  </section>
+
   <!-- ── NEWS ─────────────────────────────────────────────────────── -->
   <section class="view" id="view-news">
     <div class="view-head">
@@ -448,6 +553,56 @@
       </label>
       <span class="squawk-state" id="squawkState">—</span>
     </div>
+
+    <!-- ── Discord integration ───────────────────────────────────────── -->
+    <div class="settings-divider"></div>
+
+    <div class="settings-head" style="margin-bottom:4px">
+      <div class="card-eyebrow">COMMUNITY · DISCORD</div>
+      <h3 style="font-size:15px">Discord Squawk Room &amp; Alert Relay</h3>
+      <p class="settings-sub"><b>Webhook URL</b> lets JARVIS push HIGH-priority whale blocks,
+        sweeps and insider prints into your server as rich embeds
+        (Channel → Settings → Integrations → Webhooks → New Webhook).
+        <b>Bot token + channel ID</b> pulls your trading room's live chatter into the
+        Live 3D Map HUD (bot needs <i>Read Message History</i>).</p>
+    </div>
+
+    <div class="settings-status" id="discordStatus">
+      <span class="settings-status-dot" style="background:var(--text-faint)"></span>
+      <span id="discordStatusText">Discord dormant — squawk panel running in SIM mode</span>
+    </div>
+
+    <label class="settings-label" for="discordWebhookInput">WEBHOOK URL · ALERT RELAY (OUTBOUND)</label>
+    <div class="settings-key-row">
+      <input type="password" id="discordWebhookInput" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false" />
+      <button class="settings-eye" id="discordWebhookToggle" title="Show / hide">👁</button>
+    </div>
+
+    <label class="settings-label" for="discordBotInput" style="margin-top:10px">BOT TOKEN · CHANNEL FEED (INBOUND)</label>
+    <div class="settings-key-row">
+      <input type="password" id="discordBotInput" placeholder="MTA2Nz…" autocomplete="off" spellcheck="false" />
+      <button class="settings-eye" id="discordBotToggle" title="Show / hide">👁</button>
+    </div>
+
+    <label class="settings-label" for="discordChannelInput" style="margin-top:10px">CHANNEL ID</label>
+    <div class="settings-key-row">
+      <input type="text" id="discordChannelInput" placeholder="1123456789012345678" autocomplete="off" spellcheck="false" />
+    </div>
+
+    <div class="settings-actions">
+      <button class="settings-save" id="discordSave">Save &amp; Connect</button>
+      <button class="settings-save" id="discordTest" style="background:rgba(88,101,242,0.25);border-color:rgba(88,101,242,0.6)">Send test message</button>
+      <button class="settings-clear" id="discordClear">Clear</button>
+    </div>
+
+    <div class="settings-msg" id="discordMsg"></div>
+
+    <div class="settings-note">
+      Credentials are stored locally in <code>jarvis.db</code> and sent only to Discord.
+      Env vars also work: <code>DISCORD_WEBHOOK_URL</code>, <code>DISCORD_BOT_TOKEN</code>,
+      <code>DISCORD_CHANNEL_ID</code>. Without them the squawk panel shows simulated
+      room chatter derived from the live alert stream.
+    </div>
   </div>
 </div>
 
@@ -464,6 +619,7 @@
 <script src="microstructure.js"></script>
 <script src="squawk.js"></script>
 <script src="globe.js"></script>
+<script src="livemap.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

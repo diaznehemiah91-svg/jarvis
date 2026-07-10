@@ -69,6 +69,27 @@ smart money is moving.
   Rotational / Risk-Off, each with concrete day-trading actions.
 - **Sector heat maps** — 40 tickers across 12 sectors / 3 layers, color-coded
   by a composite of trend, sentiment, and flow.
+- **Live 3D Map** — the home view: a real-time planetary command deck.
+  Day/night terminator computed from the actual sun position, 19 world
+  exchanges with live open/pre/closed session status (DST-correct, lunch
+  breaks included), animated great-circle arcs routing institutional flow
+  (color-coded by type: whale blocks green/red, sweeps cyan/magenta, insider
+  gold/amber), layer modes (3D Globe / Heat Map / Events / Trajectories),
+  world session clocks, global-overview stat chips with a VIX-driven threat
+  level, market regime, top conviction plays, a market heat-map grid, a live
+  headline strip, and the Discord squawk room. Press `M` (or `7`), say
+  *"live map"*, or pick it from the nav rail / command palette.
+- **Discord integration** — two directions, both optional (Settings → KEYS):
+  - *Alert relay (outbound):* paste a channel **webhook URL** and JARVIS
+    pushes HIGH-priority whale blocks, sweeps, and insider prints into your
+    server as rich embeds — automatically after each sync, or on demand with
+    the map's **⇪ Relay alerts** button.
+  - *Squawk room feed (inbound):* add a **bot token + channel ID** (bot needs
+    *Read Message History*) and your trading room's live chatter streams into
+    the map HUD. Without credentials the panel runs in SIM mode with
+    synthetic chatter derived from the live alert stream.
+  - Env vars also work: `DISCORD_WEBHOOK_URL`, `DISCORD_BOT_TOKEN`,
+    `DISCORD_CHANNEL_ID`.
 - **Buy / Sell opportunities** — conviction-scored ideas with entry, target,
   stop, and risk/reward.
 - **Options ideas** — call/put suggestions with strike, expiry, and rationale.
@@ -103,16 +124,33 @@ pip install -r requirements.txt          # plus: flask yfinance vaderSentiment r
 python jarvis_boot.py                     # starts backend + opens Chrome app window
 ```
 
-Then open **<http://localhost:8765/command/>** (the boot launcher does this
-automatically in a clean Chrome application window).
+Then open **<http://localhost:8765/command/#worldmap>** (the boot launcher does
+this automatically in a clean Chrome application window). JARVIS now boots
+straight onto the **Live 3D Map** — the planetary view is the home screen, with
+market regime, top conviction plays, and the latest power headline folded into
+its HUD. Every view has a stable deep-link URL:
+
+| View | Chrome URL |
+|---|---|
+| Live 3D Map (home) | `http://localhost:8765/command/#worldmap` |
+| Overview | `http://localhost:8765/command/#overview` |
+| Heat Maps | `http://localhost:8765/command/#heatmap` |
+| Opportunities | `http://localhost:8765/command/#opportunities` |
+| Options | `http://localhost:8765/command/#options` |
+| Flow | `http://localhost:8765/command/#flow` |
+| News | `http://localhost:8765/command/#news` |
+
+The dashboard requests a **screen wake lock**, so on an always-on display the
+live map keeps spinning, sessions keep flipping open/closed, and data keeps
+syncing without the machine dozing off.
 
 ### Make it your daily startup page (Windows)
 
 - **Auto-launch at boot:** double-click **`install_autostart.bat`** once. JARVIS
-  will start with Windows and open the Command Center in a chromeless app window.
+  will start with Windows and open the Live 3D Map in a chromeless app window.
   (To undo: `Win+R` → `shell:startup` → delete `JARVIS.lnk`.)
 - **Set as Chrome homepage:** Chrome → Settings → *On startup* → *Open a
-  specific page* → add `http://localhost:8765/command/`.
+  specific page* → add `http://localhost:8765/command/#worldmap`.
 
 > The dashboard is also reachable from the classic JARVIS UI via the
 > chart icon, and the lighter legacy tracker lives at `/trading/`.

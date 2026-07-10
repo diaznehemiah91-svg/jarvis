@@ -237,7 +237,32 @@ def setApiKey(provider='finnhub', key=''):
     if provider == 'x':
         from engine.trading import news_aggregator as na
         return json.dumps(na.set_x_token(key))
+    if provider.startswith('discord_'):
+        from engine.trading import discord_client as dc
+        return json.dumps(dc.set_setting(provider.replace('discord_', '', 1), key))
     return json.dumps({"error": f"unknown provider {provider}"})
+
+@api('getDiscordStatus')
+def getDiscordStatus():
+    from engine.trading import discord_client as dc
+    return json.dumps(dc.status())
+
+@api('getDiscordFeed')
+def getDiscordFeed(limit=15):
+    from engine.trading import discord_client as dc
+    return json.dumps(dc.get_feed(limit))
+
+@api('sendDiscordTest')
+def sendDiscordTest():
+    from engine.trading import discord_client as dc
+    return json.dumps(dc.send_message(
+        "✅ **JARVIS is connected.** Alert relay from the Live 3D Map is armed."))
+
+@api('relayAlertsToDiscord')
+def relayAlertsToDiscord():
+    from engine.trading import discord_client as dc
+    briefing = generate_full_briefing()
+    return json.dumps(dc.relay_alerts(briefing.get("alerts", [])))
 
 @api('getCompanyNews')
 def getCompanyNews(ticker='NVDA', limit=12):

@@ -18,7 +18,8 @@ import webbrowser
 
 HOST = "127.0.0.1"
 PORT = 8765
-URL = f"http://localhost:{PORT}/command/"
+URL = f"http://localhost:{PORT}/command/"          # health check / base
+BOOT_URL = f"{URL}#worldmap"                       # boots onto the Live 3D Map
 
 
 def find_chrome() -> str | None:
@@ -62,14 +63,14 @@ def open_app_window() -> None:
         # --app mode = chromeless application window (premium kiosk feel)
         subprocess.Popen([
             chrome,
-            f"--app={URL}",
+            f"--app={BOOT_URL}",
             "--start-maximized",
             "--new-window",
             f"--user-data-dir={os.path.join(os.path.expanduser('~'), '.jarvis-chrome')}",
         ])
     else:
         print("[jarvis] Chrome not found — opening in default browser.")
-        webbrowser.open(URL)
+        webbrowser.open(BOOT_URL)
 
 
 def main() -> None:
@@ -82,7 +83,8 @@ def main() -> None:
 
     print(f"[jarvis] starting backend on {URL} …")
     if wait_for_server():
-        print("[jarvis] backend ready — launching Command Center window")
+        print("[jarvis] backend ready — launching Live 3D Map window")
+        print(f"[jarvis] chrome URL: {BOOT_URL}")
         open_app_window()
     else:
         print("[jarvis] backend did not respond in time; opening anyway")

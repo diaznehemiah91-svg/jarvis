@@ -710,7 +710,7 @@ kbd {
 
 /* ════ NEWS ════════════════════════════════════════════════════════════ */
 .news-tabs { display: flex; gap: 6px; }
-#view-news { display: flex; flex-direction: column; height: 100%; }
+#view-news.active { display: flex; flex-direction: column; height: 100%; }
 #view-news .view-head { flex-shrink: 0; }
 .news-grid {
   display: grid;
@@ -1731,3 +1731,272 @@ kbd {
 }
 .squawk-toggle input:checked ~ .squawk-state,
 .squawk-row:has(input:checked) .squawk-state { color: var(--bull-glow); }
+
+/* ════════════════════════════════════════════════════════════════════
+   LIVE 3D MAP — planetary operations view
+   ════════════════════════════════════════════════════════════════════ */
+.livemap-wrap {
+  position: relative;
+  height: calc(100vh - 136px);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  border: 1px solid rgba(0,212,255,0.10);
+  background: radial-gradient(ellipse 80% 70% at 50% 50%, rgba(0,40,80,0.18), transparent 75%);
+  box-shadow: 0 0 60px rgba(0,80,160,0.12), inset 0 0 40px rgba(0,20,50,0.3);
+}
+.livemap-stage { position: absolute; inset: 0; }
+.livemap-stage canvas { display: block; width: 100% !important; height: 100% !important; }
+
+.lm-panel { position: absolute; z-index: 20; border-radius: var(--r-md); }
+
+/* full-height left intel column */
+.lm-left {
+  top: 16px; left: 16px; bottom: 16px; width: 250px;
+  display: flex; flex-direction: column; padding: 14px 13px; gap: 7px;
+  overflow-y: auto;
+}
+.lm-title-block { margin-bottom: 6px; flex-shrink: 0; }
+.lm-title-main {
+  font-family: var(--font-display); font-weight: 900; font-size: 17px;
+  letter-spacing: 3px; color: #fff; text-shadow: 0 0 18px rgba(0,212,255,0.45);
+}
+.lm-title-sub { font-size: 9px; letter-spacing: 2.5px; color: var(--cyan); opacity: 0.8; margin-top: 2px; }
+.lm-utc {
+  margin-top: 8px; font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-dim); letter-spacing: 1px;
+}
+
+/* world session clocks */
+.lm-clocks {
+  top: 16px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 4px; padding: 8px 10px;
+}
+.lm-clock {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 11px; border-radius: var(--r-sm);
+  border: 1px solid transparent; transition: all .2s;
+}
+.lm-clock-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #33546e; flex-shrink: 0;
+}
+.lm-clock.open .lm-clock-dot { background: var(--green); box-shadow: 0 0 8px var(--green); animation: lmPulse 2s ease-in-out infinite; }
+.lm-clock.pre  .lm-clock-dot { background: var(--gold);  box-shadow: 0 0 8px var(--gold); }
+.lm-clock-city { font-size: 9px; letter-spacing: 1.5px; color: var(--text-faint); font-weight: 600; }
+.lm-clock.open .lm-clock-city { color: var(--green); }
+.lm-clock.pre  .lm-clock-city { color: var(--gold); }
+.lm-clock-time { font-family: var(--font-mono); font-size: 13px; color: var(--text); }
+@keyframes lmPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+/* right sidebar: exchange board + flow feed */
+.lm-side {
+  top: 16px; right: 16px; bottom: 16px; width: 262px;
+  display: flex; flex-direction: column; padding: 14px 12px; gap: 8px;
+}
+.lm-side-head {
+  font-size: 10px; letter-spacing: 2px; color: var(--cyan);
+  font-weight: 700; padding: 0 4px 4px; flex-shrink: 0;
+}
+.lm-side-head-feed { margin-top: 6px; border-top: 1px solid var(--stroke); padding-top: 12px; }
+.lm-exch-list { overflow-y: auto; flex: 1.4; min-height: 0; padding-right: 2px; }
+.lm-exch {
+  display: grid; grid-template-columns: 10px 52px 1fr auto auto;
+  gap: 7px; align-items: center;
+  padding: 6px 6px; border-radius: 6px; margin-bottom: 2px;
+  font-size: 11px; transition: background .15s;
+}
+.lm-exch:hover { background: rgba(0,212,255,0.05); }
+.lm-exch-dot { width: 7px; height: 7px; border-radius: 50%; background: #33546e; }
+.lm-exch.open .lm-exch-dot { background: var(--green); box-shadow: 0 0 7px var(--green); animation: lmPulse 2s ease-in-out infinite; }
+.lm-exch.pre  .lm-exch-dot { background: var(--gold); box-shadow: 0 0 7px var(--gold); }
+.lm-exch-id { font-family: var(--font-display); font-size: 11px; font-weight: 700; color: var(--text); letter-spacing: 0.5px; }
+.lm-exch-city { color: var(--text-faint); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lm-exch-time { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); }
+.lm-exch-state { font-size: 9px; font-weight: 700; letter-spacing: 1px; color: var(--text-faint); min-width: 44px; text-align: right; }
+.lm-exch.open .lm-exch-state { color: var(--green); }
+.lm-exch.pre  .lm-exch-state { color: var(--gold); }
+
+.lm-feed { overflow-y: auto; flex: 1; min-height: 0; padding-right: 2px; }
+.lm-feed-item {
+  display: grid; grid-template-columns: 14px 52px 1fr auto;
+  gap: 7px; align-items: center;
+  padding: 7px 8px; border-radius: 6px; margin-bottom: 3px;
+  font-size: 11px; cursor: pointer;
+  background: rgba(255,255,255,0.02); border-left: 2px solid transparent;
+  transition: all .15s;
+}
+.lm-feed-item:hover { background: rgba(0,212,255,0.07); transform: translateX(2px); }
+.lm-feed-item.bull { border-left-color: var(--green); }
+.lm-feed-item.bear { border-left-color: var(--red); }
+.lm-feed-dir { font-size: 10px; }
+.lm-feed-item.bull .lm-feed-dir { color: var(--green); }
+.lm-feed-item.bear .lm-feed-dir { color: var(--red); }
+.lm-feed-ticker { font-family: var(--font-display); font-weight: 700; color: var(--text); }
+.lm-feed-type { color: var(--text-faint); font-size: 9px; letter-spacing: 0.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lm-feed-size { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); }
+.lm-feed-empty { color: var(--text-faint); font-size: 11px; padding: 8px; line-height: 1.5; }
+
+/* telemetry stats (left column footer) */
+.lm-stats { display: flex; gap: 16px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--stroke); flex-shrink: 0; }
+.lm-stat { display: flex; flex-direction: column; }
+.lm-stat-num { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--cyan); }
+.lm-stat-lbl { font-size: 8px; letter-spacing: 1.2px; color: var(--text-faint); margin-top: 2px; }
+
+/* controls (sit above the live-feed strip) */
+.lm-controls { bottom: 84px; right: 294px; display: flex; gap: 8px; }
+
+@media (max-width: 1100px) {
+  .lm-side, .lm-left, .lm-newsstrip { display: none; }
+  .lm-controls { right: 16px; bottom: 16px; }
+  .lm-clocks, .lm-modes { display: none; }
+}
+
+/* JARVIS intel styles inside the left column */
+.lm-regime-name {
+  font-family: var(--font-display); font-weight: 900; font-size: 17px;
+  letter-spacing: 1.5px; color: var(--gold); margin-top: 2px;
+  text-shadow: 0 0 16px rgba(255,200,87,0.25);
+}
+.lm-regime-sub { font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); margin-top: 3px; letter-spacing: 0.5px; }
+.lm-intel-gap { margin-top: 14px; border-top: 1px solid var(--stroke); padding-top: 12px; }
+.lm-plays { overflow-y: auto; min-height: 0; }
+.lm-play {
+  display: grid; grid-template-columns: 44px 40px 1fr auto;
+  gap: 7px; align-items: center;
+  padding: 6px 6px; border-radius: 6px; margin-bottom: 2px;
+  font-size: 11px; cursor: pointer; transition: background .15s;
+}
+.lm-play:hover { background: rgba(0,212,255,0.07); }
+.lm-play-sym { font-family: var(--font-display); font-weight: 700; font-size: 12px; color: var(--text); }
+.lm-play-act { font-size: 9px; font-weight: 700; letter-spacing: 0.5px; }
+.lm-play-bar { height: 4px; border-radius: 3px; background: rgba(255,255,255,0.07); overflow: hidden; }
+.lm-play-bar i { display: block; height: 100%; border-radius: 3px; }
+.lm-play-conv { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
+.lm-headline {
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--stroke);
+  font-size: 11px; color: var(--text-dim); line-height: 1.45; flex-shrink: 0;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.lm-headline-tag { color: var(--gold); font-weight: 700; }
+
+/* ── Global overview chips + threat level ── */
+.lm-ov-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; flex-shrink: 0; }
+.lm-ov-chip {
+  display: flex; flex-direction: column; align-items: flex-start;
+  padding: 8px 9px; border-radius: var(--r-sm);
+  background: rgba(255,255,255,0.03); border: 1px solid var(--stroke);
+}
+.lm-ov-num { font-family: var(--font-display); font-size: 17px; font-weight: 700; line-height: 1.1; }
+.lm-ov-num.cyan   { color: var(--cyan); }
+.lm-ov-num.green  { color: var(--green); }
+.lm-ov-num.violet { color: #a78bfa; }
+.lm-ov-num.red    { color: var(--red); }
+.lm-ov-lbl { font-size: 7.5px; letter-spacing: 1.2px; color: var(--text-faint); margin-top: 3px; }
+.lm-threat {
+  display: grid; grid-template-columns: auto auto; align-items: center;
+  justify-content: space-between; gap: 3px 8px; margin-top: 3px; flex-shrink: 0;
+}
+.lm-threat-lbl { font-size: 9px; letter-spacing: 1.5px; color: var(--text-faint); font-weight: 600; }
+.lm-threat-state { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: var(--green); text-align: right; }
+.lm-threat-track {
+  grid-column: 1 / -1; height: 4px; border-radius: 3px;
+  background: rgba(255,255,255,0.07); overflow: hidden;
+}
+.lm-threat-track i { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--green); transition: width .6s ease, background .6s ease; }
+
+/* ── Heat map mini-grid ── */
+.lm-heat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; flex-shrink: 0; }
+.lm-heat-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 7px 2px; border-radius: 6px; cursor: pointer;
+  border: 1px solid transparent; transition: transform .12s, box-shadow .12s;
+}
+.lm-heat-tile:hover { transform: translateY(-1px); box-shadow: 0 0 12px rgba(0,212,255,0.25); }
+.lm-heat-sym { font-family: var(--font-display); font-size: 10.5px; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
+.lm-heat-val { font-family: var(--font-mono); font-size: 9px; color: rgba(255,255,255,0.82); }
+
+/* ── Layer mode tabs (top center, under the clocks) ── */
+.lm-modes {
+  top: 62px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 3px; padding: 5px 6px;
+}
+.lm-mode {
+  border: 1px solid transparent; background: transparent; cursor: pointer;
+  font-family: var(--font-head); font-size: 10px; letter-spacing: 1.2px;
+  color: var(--text-faint); padding: 5px 11px; border-radius: var(--r-sm);
+  transition: all .15s;
+}
+.lm-mode:hover { color: var(--cyan); }
+.lm-mode.active {
+  color: var(--cyan); border-color: rgba(0,212,255,0.35);
+  background: rgba(0,212,255,0.08); box-shadow: 0 0 12px rgba(0,212,255,0.15);
+}
+
+/* ── Discord squawk room ── */
+.lm-discord-head { display: flex; align-items: center; gap: 6px; }
+.lm-discord-glyph { color: #5865f2; font-size: 12px; }
+.lm-discord-mode {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 4px;
+  font-size: 8px; letter-spacing: 1.2px; font-weight: 700;
+  padding: 2px 7px; border-radius: 8px; border: 1px solid var(--stroke);
+  color: var(--text-faint);
+}
+.lm-discord-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); }
+.lm-discord-mode.live { color: var(--green); border-color: rgba(31,224,160,0.4); }
+.lm-discord-mode.live .lm-discord-dot { background: var(--green); box-shadow: 0 0 7px var(--green); animation: lmPulse 2s ease-in-out infinite; }
+.lm-discord-mode.sim  { color: var(--gold); border-color: rgba(255,200,87,0.3); }
+.lm-discord-mode.sim .lm-discord-dot { background: var(--gold); }
+.lm-discord { overflow-y: auto; flex: 1; min-height: 0; padding-right: 2px; }
+.lm-dc-msg {
+  padding: 6px 7px; border-radius: 6px; margin-bottom: 3px;
+  background: rgba(88,101,242,0.05); border-left: 2px solid rgba(88,101,242,0.45);
+}
+.lm-dc-head { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.lm-dc-avatar {
+  width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #5865f2, #7983f5);
+  font-family: var(--font-display); font-size: 8.5px; font-weight: 700; color: #fff;
+}
+.lm-dc-author { font-size: 10.5px; font-weight: 700; color: #aeb6ff; }
+.lm-dc-bot {
+  font-style: normal; font-size: 7px; letter-spacing: 0.8px; font-weight: 700;
+  background: #5865f2; color: #fff; border-radius: 3px; padding: 1px 4px; vertical-align: 1px;
+}
+.lm-dc-time { margin-left: auto; font-family: var(--font-mono); font-size: 9px; color: var(--text-faint); }
+.lm-dc-text { font-size: 11px; color: var(--text-dim); line-height: 1.4; word-break: break-word; }
+.lm-discord-foot { display: flex; gap: 6px; padding-top: 7px; flex-shrink: 0; }
+.lm-discord-btn {
+  flex: 1; cursor: pointer; padding: 6px 4px; border-radius: var(--r-sm);
+  background: rgba(88,101,242,0.12); border: 1px solid rgba(88,101,242,0.35);
+  font-family: var(--font-head); font-size: 10px; letter-spacing: 0.8px; color: #aeb6ff;
+  transition: all .15s;
+}
+.lm-discord-btn:hover { background: rgba(88,101,242,0.25); color: #fff; }
+
+/* ── Bottom live-feed headline strip ── */
+.lm-newsstrip {
+  bottom: 16px; left: 282px; right: 294px; height: 56px;
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+}
+.lm-newsstrip-tag {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  font-size: 8px; letter-spacing: 1.5px; font-weight: 700; color: var(--green);
+  flex-shrink: 0; padding-right: 10px; border-right: 1px solid var(--stroke);
+}
+.lm-newsstrip-track {
+  display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+}
+.lm-newsstrip-track::-webkit-scrollbar { display: none; }
+.lm-news-card {
+  flex-shrink: 0; width: 218px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 4px 10px; border-left: 2px solid rgba(0,212,255,0.35); border-radius: 4px;
+  transition: background .15s;
+}
+.lm-news-card:hover { background: rgba(0,212,255,0.06); }
+.lm-news-meta { font-family: var(--font-mono); font-size: 8.5px; color: var(--cyan); letter-spacing: 0.5px; }
+.lm-news-title {
+  font-size: 10.5px; color: var(--text-dim); line-height: 1.25;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
