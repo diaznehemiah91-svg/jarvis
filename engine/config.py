@@ -40,3 +40,22 @@ RSS_FEEDS = [
 UNUSUAL_WHALES_KEY = os.environ.get("UNUSUAL_WHALES_KEY", "")
 TRADIER_TOKEN = os.environ.get("TRADIER_TOKEN", "")
 ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "")
+
+# ── Discord Bot (for live trading updates from #honey-drip) ──────────────────
+# Get bot token from Discord Developer Portal: https://discord.com/developers/applications
+#
+# Setup:
+#   1) Create bot at Discord Developer Portal
+#   2) Copy bot token
+#   3) Set DISCORD_BOT_TOKEN env var or paste below
+#   4) Create #honey-drip channel in your Discord server
+#   5) Invite bot to server using OAuth2 URL
+#   6) Bot will monitor #honey-drip for trading signals
+#
+# Two ways to provide it (either works):
+#   1) Set the DISCORD_BOT_TOKEN environment variable (recommended), OR
+#   2) Paste your token directly between the quotes on the _HARDCODED line below.
+_DISCORD_TOKEN_HARDCODED = ""  # e.g. "MjM4NDk0NjM1MTk2MDI..."
+DISCORD_BOT_TOKEN = os.environ.get("DISCORD_BOT_TOKEN", "") or _DISCORD_TOKEN_HARDCODED
+DISCORD_CHANNEL = "honey-drip"  # Channel to monitor for trading signals
+DISCORD_AUTO_START = True  # Auto-start bot when Jarvis launches
