@@ -109,16 +109,33 @@ pip install -r requirements.txt          # plus: flask yfinance vaderSentiment r
 python jarvis_boot.py                     # starts backend + opens Chrome app window
 ```
 
-Then open **<http://localhost:8765/command/>** (the boot launcher does this
-automatically in a clean Chrome application window).
+Then open **<http://localhost:8765/command/#worldmap>** (the boot launcher does
+this automatically in a clean Chrome application window). JARVIS now boots
+straight onto the **Live 3D Map** — the planetary view is the home screen, with
+market regime, top conviction plays, and the latest power headline folded into
+its HUD. Every view has a stable deep-link URL:
+
+| View | Chrome URL |
+|---|---|
+| Live 3D Map (home) | `http://localhost:8765/command/#worldmap` |
+| Overview | `http://localhost:8765/command/#overview` |
+| Heat Maps | `http://localhost:8765/command/#heatmap` |
+| Opportunities | `http://localhost:8765/command/#opportunities` |
+| Options | `http://localhost:8765/command/#options` |
+| Flow | `http://localhost:8765/command/#flow` |
+| News | `http://localhost:8765/command/#news` |
+
+The dashboard requests a **screen wake lock**, so on an always-on display the
+live map keeps spinning, sessions keep flipping open/closed, and data keeps
+syncing without the machine dozing off.
 
 ### Make it your daily startup page (Windows)
 
 - **Auto-launch at boot:** double-click **`install_autostart.bat`** once. JARVIS
-  will start with Windows and open the Command Center in a chromeless app window.
+  will start with Windows and open the Live 3D Map in a chromeless app window.
   (To undo: `Win+R` → `shell:startup` → delete `JARVIS.lnk`.)
 - **Set as Chrome homepage:** Chrome → Settings → *On startup* → *Open a
-  specific page* → add `http://localhost:8765/command/`.
+  specific page* → add `http://localhost:8765/command/#worldmap`.
 
 > The dashboard is also reachable from the classic JARVIS UI via the
 > chart icon, and the lighter legacy tracker lives at `/trading/`.

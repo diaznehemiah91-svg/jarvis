@@ -50,6 +50,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   initSquawk();
   initGlobeHero();
   initNewsRail();
+  initRoute();
+  requestWakeLock();
   updateMarketStatus();
   setInterval(updateMarketStatus, 30000);
 
@@ -492,9 +494,41 @@ function initLiveMap() {
 }
 
 function renderLiveMap() {
-  if (!liveMap) return;
-  liveMap.setTiles(allHeatmapTiles());
-  liveMap.setAlerts(State.briefing?.alerts || []);
+  if (liveMap) {
+    liveMap.setTiles(allHeatmapTiles());
+    liveMap.setAlerts(State.briefing?.alerts || []);
+  }
+  renderLiveMapIntel();
+}
+
+// JARVIS intel folded into the map HUD: regime, top plays, latest headline.
+function renderLiveMapIntel() {
+  const nameEl = document.getElementById('lmRegimeName');
+  if (!nameEl) return;
+  const r = State.regime;
+  if (r) {
+    const label = (r.regime_label || '—').split('/')[0].trim();
+    nameEl.textContent = label;
+    nameEl.style.color = r.regime_score >= 0.15 ? 'var(--green)'
+                       : r.regime_score <= -0.15 ? 'var(--red)' : 'var(--gold)';
+    document.getElementById('lmRegimeSub').textContent =
+      `Composite ${Number(r.regime_score).toFixed(2)} · VIX ${r.vix_level != null ? Number(r.vix_level).toFixed(1) : '—'}`;
+  }
+  const buys = State.opportunities?.buys || [];
+  document.getElementById('lmPlays').innerHTML = buys.slice(0, 5).map(o => `
+    <div class="lm-play" onclick="openDrawer('${o.ticker}')">
+      <span class="lm-play-sym">${o.ticker}</span>
+      <span class="lm-play-act" style="color:${actionColor(o.action)}">${o.action}</span>
+      <div class="lm-play-bar"><i style="width:${o.conviction || 0}%;background:${actionColor(o.action)}"></i></div>
+      <span class="lm-play-conv">${o.conviction || 0}%</span>
+    </div>`).join('') || '<div class="lm-feed-empty">Syncing conviction plays…</div>';
+  const top = newsArticles('power')[0];
+  const h = document.getElementById('lmHeadline');
+  if (h && top) {
+    const a = newsField(top);
+    h.innerHTML = `<span class="lm-headline-tag">⚡</span> ${a.title}`;
+    h.style.display = 'block';
+  }
 }
 
 // Track last announced headline to avoid re-squawking on re-render
@@ -509,6 +543,7 @@ async function loadNews() {
   State.news = { power, market };
   renderNews();
   renderNewsRail();
+  renderLiveMapIntel();
 }
 
 // ════ OVERVIEW BREAKING-NEWS RAIL ═════════════════════════════════════════════
@@ -979,8 +1014,36 @@ function initNav() {
   }));
 }
 
+// ════ URL ROUTING & STAY-LIVE ═══════════════════════════════════════════════
+// Deep links: /command/#worldmap, #overview, #heatmap, #opportunities, …
+// The Live 3D Map is the home view — JARVIS boots straight onto the planet.
+const ROUTES = ['worldmap', 'overview', 'heatmap', 'opportunities', 'options', 'flow', 'news'];
+const DEFAULT_VIEW = 'worldmap';
+
+function initRoute() {
+  const v = (location.hash || '').replace('#', '');
+  switchView(ROUTES.includes(v) ? v : DEFAULT_VIEW);
+  window.addEventListener('hashchange', () => {
+    const h = location.hash.replace('#', '');
+    if (ROUTES.includes(h) && h !== State.view) switchView(h);
+  });
+}
+
+// Screen Wake Lock — keeps the dashboard awake on an always-on display.
+let _wakeLock = null;
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    _wakeLock = await navigator.wakeLock.request('screen');
+  } catch (e) { /* battery saver / hidden tab — retried on visibilitychange */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') requestWakeLock();
+});
+
 function switchView(view) {
   State.view = view;
+  if (location.hash !== '#' + view) history.replaceState(null, '', '#' + view);
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + view)?.classList.add('active');
   document.querySelectorAll('.rail-btn[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
