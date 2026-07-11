@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#0d0d0d"/>
+<title>Hollywood Liquors — AI Growth Coach</title>
+<style>
+/* ── Design tokens (dataviz reference palette; light + dark selected) ────── */
+:root{
+  --page:#f9f9f7; --surface:#fcfcfb; --surface-2:#f3f2ee;
+  --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --baseline:#c3c2b7; --border:rgba(11,11,11,0.10);
+  --accent:#2a78d6; --accent-ink:#1c5cab; --accent-wash:#cde2fb; --accent-track:#cde2fb;
+  --pos:#2a78d6; --neg:#e34948;
+  --delta-up:#006300; --delta-down:#d03b3b;
+  --good:#0ca30c; --warning:#fab219; --critical:#d03b3b;
+  --chip:#f0efec; --shadow:0 10px 30px rgba(11,11,11,.10);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --page:#0d0d0d; --surface:#1a1a19; --surface-2:#222220;
+    --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,0.10);
+    --accent:#3987e5; --accent-ink:#6da7ec; --accent-wash:rgba(57,135,229,.16); --accent-track:#1c3350;
+    --pos:#3987e5; --neg:#e66767;
+    --delta-up:#0ca30c; --delta-down:#e66767;
+    --chip:#262624; --shadow:0 10px 30px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="light"]{
+  --page:#f9f9f7; --surface:#fcfcfb; --surface-2:#f3f2ee;
+  --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --baseline:#c3c2b7; --border:rgba(11,11,11,0.10);
+  --accent:#2a78d6; --accent-ink:#1c5cab; --accent-wash:#cde2fb; --accent-track:#cde2fb;
+  --pos:#2a78d6; --neg:#e34948;
+  --delta-up:#006300; --delta-down:#d03b3b;
+  --chip:#f0efec; --shadow:0 10px 30px rgba(11,11,11,.10);
+}
+:root[data-theme="dark"]{
+  --page:#0d0d0d; --surface:#1a1a19; --surface-2:#222220;
+  --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+  --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,0.10);
+  --accent:#3987e5; --accent-ink:#6da7ec; --accent-wash:rgba(57,135,229,.16); --accent-track:#1c3350;
+  --pos:#3987e5; --neg:#e66767;
+  --delta-up:#0ca30c; --delta-down:#e66767;
+  --chip:#262624; --shadow:0 10px 30px rgba(0,0,0,.5);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--page);color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+
+/* ── Phone shell (centers on desktop, full-bleed on mobile) ──────────────── */
+#shell{max-width:440px;margin:0 auto;min-height:100dvh;background:var(--page);
+  display:flex;flex-direction:column;position:relative}
+@media (min-width:520px){
+  #shell{border-left:1px solid var(--border);border-right:1px solid var(--border);
+    box-shadow:var(--shadow)}
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+header{padding:18px 18px 12px;display:flex;align-items:center;gap:12px;
+  position:sticky;top:0;background:var(--page);z-index:20;
+  border-bottom:1px solid var(--border)}
+.logo{width:40px;height:40px;border-radius:12px;background:var(--accent);
+  color:#fff;display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:15px;letter-spacing:.5px;flex-shrink:0}
+.store-name{font-size:15px;font-weight:700;line-height:1.2}
+.store-sub{font-size:11.5px;color:var(--muted)}
+.demo-pill{margin-left:auto;font-size:9.5px;font-weight:700;letter-spacing:1px;
+  color:var(--ink-2);background:var(--chip);border:1px solid var(--border);
+  padding:4px 8px;border-radius:999px;white-space:nowrap}
+
+/* ── Content / tabs ─────────────────────────────────────────────────────── */
+main{flex:1;padding:16px 16px calc(84px + env(safe-area-inset-bottom));overflow-x:hidden}
+.tab{display:none;animation:fadeIn .25s ease}
+.tab.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:440px;
+  background:var(--surface);border-top:1px solid var(--border);display:flex;z-index:30;
+  padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;padding:9px 2px 8px;display:flex;flex-direction:column;align-items:center;
+  gap:2px;font-size:10px;font-weight:600;color:var(--muted)}
+nav button .nico{font-size:19px;line-height:1;filter:grayscale(1);opacity:.65}
+nav button.active{color:var(--accent-ink)}
+nav button.active .nico{filter:none;opacity:1}
+
+/* ── Cards & common bits ────────────────────────────────────────────────── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:16px;margin-bottom:12px}
+.card-title{font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card-title .spacer{flex:1}
+h1.greet{font-size:21px;font-weight:800;margin:2px 0 2px}
+.greet-sub{font-size:13px;color:var(--ink-2);margin-bottom:14px}
+.sec-label{font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  color:var(--muted);margin:18px 2px 10px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  background:var(--accent);color:#fff;font-weight:700;font-size:13px;
+  padding:10px 16px;border-radius:12px;transition:opacity .15s}
+.btn:active{opacity:.8}
+.btn.ghost{background:var(--chip);color:var(--ink);border:1px solid var(--border)}
+.btn.small{padding:7px 12px;font-size:12px;border-radius:10px}
+
+.chipline{display:flex;gap:8px;flex-wrap:wrap}
+.chip{background:var(--chip);border:1px solid var(--border);color:var(--ink-2);
+  font-size:12px;font-weight:600;padding:7px 12px;border-radius:999px}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+.delta{font-size:12px;font-weight:700}
+.delta.up{color:var(--delta-up)} .delta.down{color:var(--delta-down)}
+
+/* ── Score ring ─────────────────────────────────────────────────────────── */
+.score-row{display:flex;align-items:center;gap:16px}
+.ring{position:relative;width:86px;height:86px;flex-shrink:0}
+.ring svg{transform:rotate(-90deg)}
+.ring .num{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center}
+.ring .num b{font-size:24px;font-weight:800;line-height:1}
+.ring .num span{font-size:9.5px;color:var(--muted);margin-top:2px}
+.score-copy{font-size:13px;color:var(--ink-2);line-height:1.5}
+.score-copy b{color:var(--ink)}
+
+/* ── Opportunity cards ──────────────────────────────────────────────────── */
+.opp{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:14px 16px;margin-bottom:10px}
+.opp-head{display:flex;align-items:flex-start;gap:10px}
+.opp-emoji{font-size:22px;line-height:1.3}
+.opp-title{font-size:14.5px;font-weight:700;line-height:1.3}
+.opp-why{font-size:12.5px;color:var(--ink-2);margin-top:3px;line-height:1.45}
+.opp-stats{display:flex;gap:14px;margin:10px 0 12px;font-size:12px;color:var(--muted)}
+.opp-stats b{color:var(--ink);font-size:13px}
+.opp-actions{display:flex;gap:8px}
+.opp.done{opacity:.55}
+.opp .done-note{font-size:12px;font-weight:700;color:var(--delta-up)}
+
+/* ── Stat tiles ─────────────────────────────────────────────────────────── */
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:13px 14px}
+.tile .lbl{font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px}
+.tile .val{font-size:20px;font-weight:700;line-height:1.1}
+.tile .sub{font-size:11px;color:var(--muted);margin-top:4px}
+.tile svg{display:block;margin-top:8px}
+
+/* meter */
+.meter{height:8px;border-radius:4px;background:var(--accent-track);
+  position:relative;margin-top:10px;overflow:visible}
+.meter .fill{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--accent)}
+.meter .tgt{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink-2);border-radius:1px}
+
+/* ── Charts ─────────────────────────────────────────────────────────────── */
+.chart-wrap{position:relative}
+.chart-wrap svg{display:block;width:100%;height:auto}
+.tooltip{position:absolute;pointer-events:none;background:var(--surface);
+  border:1px solid var(--border);box-shadow:var(--shadow);border-radius:10px;
+  padding:7px 10px;font-size:11.5px;line-height:1.45;display:none;z-index:5;white-space:nowrap}
+.tooltip b{font-size:12.5px}
+.axis-text{font-size:10px;fill:var(--muted)}
+.tick-num{font-variant-numeric:tabular-nums}
+
+.range-row{display:flex;gap:8px;margin-bottom:10px}
+
+details.data-table{margin-top:10px}
+details.data-table summary{font-size:11.5px;color:var(--muted);cursor:pointer;user-select:none}
+details.data-table table{width:100%;border-collapse:collapse;margin-top:8px;font-size:11.5px}
+details.data-table td,details.data-table th{padding:4px 6px;border-bottom:1px solid var(--grid);text-align:left}
+details.data-table td:last-child,details.data-table th:last-child{text-align:right;font-variant-numeric:tabular-nums}
+details.data-table th{color:var(--muted);font-weight:600}
+
+/* movers */
+.mover{display:grid;grid-template-columns:96px 1fr 52px;align-items:center;gap:10px;margin-bottom:10px}
+.mover .m-name{font-size:12.5px;font-weight:600;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mover .m-val{font-size:12px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+.mover .m-bar{height:34px}
+
+/* product list */
+.prow{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--grid)}
+.prow:last-child{border-bottom:none}
+.prow .pemoji{font-size:19px}
+.prow .pname{font-size:13.5px;font-weight:600}
+.prow .psub{font-size:11px;color:var(--muted)}
+.prow .pright{margin-left:auto;text-align:right}
+
+/* ── Campaigns ──────────────────────────────────────────────────────────── */
+.gen-out{margin-top:14px;display:none}
+.gen-out.show{display:block}
+.asset{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;
+  padding:12px;margin-bottom:10px;opacity:0;transform:translateY(6px);
+  transition:opacity .4s ease,transform .4s ease}
+.asset.in{opacity:1;transform:none}
+.asset-head{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.asset-head .a-t{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+.asset-head .copy{margin-left:auto;font-size:11px;font-weight:700;color:var(--accent-ink);
+  padding:3px 8px;border-radius:8px;background:var(--chip)}
+.asset-body{font-size:13px;line-height:1.55;white-space:pre-wrap;color:var(--ink)}
+.asset-meta{font-size:11px;color:var(--muted);margin-top:6px}
+.gen-spin{display:none;align-items:center;gap:10px;font-size:13px;color:var(--ink-2);margin-top:14px}
+.gen-spin.show{display:flex}
+.dotanim{display:inline-flex;gap:3px}
+.dotanim i{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:bnc 1s infinite}
+.dotanim i:nth-child(2){animation-delay:.15s}.dotanim i:nth-child(3){animation-delay:.3s}
+@keyframes bnc{0%,80%,100%{opacity:.25;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+.lift-line{background:var(--accent-wash);border-radius:12px;padding:11px 13px;
+  font-size:12.5px;line-height:1.5;margin-bottom:10px;color:var(--ink)}
+
+/* ── Calendar ───────────────────────────────────────────────────────────── */
+.evt{display:flex;align-items:center;gap:12px;padding:12px 2px;border-bottom:1px solid var(--grid)}
+.evt:last-child{border-bottom:none}
+.evt .e-emoji{font-size:22px;width:30px;text-align:center}
+.evt .e-name{font-size:13.5px;font-weight:700}
+.evt .e-date{font-size:11.5px;color:var(--muted)}
+.evt .e-right{margin-left:auto;text-align:right}
+.evt .e-days{font-size:12px;font-weight:800;color:var(--accent-ink)}
+.evt .e-prep{font-size:11px;font-weight:700;color:var(--accent-ink);margin-top:2px;white-space:nowrap}
+.evt .e-name{padding-right:6px}
+
+/* ── Coach chat ─────────────────────────────────────────────────────────── */
+#chat-log{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.msg{max-width:86%;padding:10px 13px;border-radius:16px;font-size:13.5px;line-height:1.5;white-space:pre-wrap}
+.msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:5px}
+.msg.bot{align-self:flex-start;background:var(--surface);border:1px solid var(--border);border-bottom-left-radius:5px}
+.msg.bot b{font-weight:700}
+.chat-input-row{display:flex;gap:8px;position:sticky;bottom:calc(84px + env(safe-area-inset-bottom));
+  background:var(--page);padding:10px 0;box-shadow:0 -8px 12px -6px var(--page)}
+.chat-input-row input{flex:1;background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:11px 13px;font:inherit;font-size:13.5px;color:var(--ink);outline:none}
+.chat-input-row input::placeholder{color:var(--muted)}
+.footnote{text-align:center;font-size:10.5px;color:var(--muted);margin:16px 0 4px;line-height:1.5}
+</style>
+</head>
+<body>
+<div id="shell">
+
+  <header>
+    <div class="logo">HL</div>
+    <div>
+      <div class="store-name">Hollywood Liquors</div>
+      <div class="store-sub">AI Growth Coach · Boston, MA</div>
+    </div>
+    <div class="demo-pill">DEMO DATA</div>
+  </header>
+
+  <main>
+
+    <!-- ═════════ TODAY ═════════ -->
+    <section class="tab active" id="tab-today">
+      <h1 class="greet" id="greet">Good morning 👋</h1>
+      <div class="greet-sub" id="greet-date"></div>
+
+      <div class="card">
+        <div class="score-row">
+          <div class="ring" id="score-ring"></div>
+          <div class="score-copy">
+            Marketing score is <b>82 / 100</b> — up 4 pts this week.
+            Complete today's opportunities to reach <b>Top 10%</b> of local stores.
+          </div>
+        </div>
+      </div>
+
+      <div class="sec-label">Today's opportunities</div>
+      <div id="opps"></div>
+
+      <div class="sec-label">Store pulse</div>
+      <div class="tiles">
+        <div class="tile">
+          <div class="lbl">Revenue yesterday</div>
+          <div class="val" id="rev-val">—</div>
+          <div class="sub"><span class="delta up" id="rev-delta"></span> vs last Thu</div>
+          <svg id="rev-spark" width="100%" height="30" viewBox="0 0 140 30" preserveAspectRatio="none"></svg>
+        </div>
+        <div class="tile">
+          <div class="lbl">Customers returning</div>
+          <div class="val">71%</div>
+          <div class="sub">target 80%</div>
+          <div class="meter"><div class="fill" style="width:71%"></div><div class="tgt" style="left:80%"></div></div>
+        </div>
+        <div class="tile">
+          <div class="lbl">Instagram</div>
+          <div class="val">6 days</div>
+          <div class="sub">since last post · <b style="color:var(--accent-ink)">post today</b></div>
+        </div>
+        <div class="tile">
+          <div class="lbl">Top product</div>
+          <div class="val" style="font-size:16px">Modelo Especial</div>
+          <div class="sub"><span class="delta up">▲ 25%</span> this week</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div class="card-title">☀️ Weekend weather</div>
+        <div style="font-size:13.5px;line-height:1.55;color:var(--ink-2)">
+          <b style="color:var(--ink)">Sat 88° · Sun 84°, sunny.</b>
+          Hot weekends lift beer &amp; seltzer sales ~22% — stock the cooler and lead
+          with the <b style="color:var(--ink)">BBQ Bundle</b>.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🤖 Coach insight</div>
+        <div style="font-size:13.5px;line-height:1.55;color:var(--ink-2)">
+          64% of customers buying <b style="color:var(--ink)">tequila</b> also buy
+          <b style="color:var(--ink)">margarita mix</b> — but they're rung up separately.
+          Shelve them together and bundle for +$2 margin per basket.
+        </div>
+        <div style="margin-top:11px"><button class="btn small" data-launch="margarita">Create bundle campaign</button></div>
+      </div>
+    </section>
+
+    <!-- ═════════ TRENDS ═════════ -->
+    <section class="tab" id="tab-trends">
+      <div class="card">
+        <div class="card-title">Revenue trend <span class="spacer"></span></div>
+        <div class="range-row">
+          <button class="chip on" data-range="7">7D</button>
+          <button class="chip" data-range="14">14D</button>
+          <button class="chip" data-range="30">30D</button>
+        </div>
+        <div class="chart-wrap" id="trend-wrap">
+          <svg id="trend-svg" viewBox="0 0 380 190"></svg>
+          <div class="tooltip" id="trend-tip"></div>
+        </div>
+        <details class="data-table" id="trend-table-wrap">
+          <summary>View data</summary>
+          <table id="trend-table"></table>
+        </details>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Category movers · this week</div>
+        <div id="movers"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Top sellers · this week</div>
+        <div id="top-products"></div>
+      </div>
+    </section>
+
+    <!-- ═════════ CAMPAIGNS ═════════ -->
+    <section class="tab" id="tab-campaigns">
+      <div class="card">
+        <div class="card-title">⚡ One-tap campaign builder</div>
+        <div style="font-size:13px;color:var(--ink-2);line-height:1.5;margin-bottom:12px">
+          Pick a promotion — the coach writes the Instagram post, Facebook post,
+          SMS and email, all on-theme, in seconds.
+        </div>
+        <div class="chipline" id="promo-chips"></div>
+        <div style="margin-top:14px">
+          <button class="btn" id="gen-btn">✨ Generate campaign</button>
+        </div>
+        <div class="gen-spin" id="gen-spin">
+          <span class="dotanim"><i></i><i></i><i></i></span>
+          <span id="gen-spin-txt">Writing your campaign…</span>
+        </div>
+        <div class="gen-out" id="gen-out"></div>
+      </div>
+    </section>
+
+    <!-- ═════════ CALENDAR ═════════ -->
+    <section class="tab" id="tab-calendar">
+      <div class="card">
+        <div class="card-title">📅 Marketing calendar</div>
+        <div style="font-size:13px;color:var(--ink-2);line-height:1.5;margin-bottom:6px">
+          Every revenue moment for the next few months — tap one and the campaign
+          is drafted before you finish your coffee.
+        </div>
+        <div id="events"></div>
+      </div>
+    </section>
+
+    <!-- ═════════ COACH ═════════ -->
+    <section class="tab" id="tab-coach">
+      <div id="chat-log"></div>
+      <div class="chipline" id="chat-chips" style="margin-bottom:12px"></div>
+      <div class="chat-input-row">
+        <input id="chat-input" placeholder="Ask your coach anything…" autocomplete="off"/>
+        <button class="btn" id="chat-send">Send</button>
+      </div>
+    </section>
+
+    <div class="footnote">Simulated demo data · connects to your POS &amp; socials in the full version</div>
+  </main>
+
+  <nav>
+    <button class="active" data-tab="today"><span class="nico">🏠</span>Today</button>
+    <button data-tab="trends"><span class="nico">📈</span>Trends</button>
+    <button data-tab="campaigns"><span class="nico">⚡</span>Campaigns</button>
+    <button data-tab="calendar"><span class="nico">📅</span>Calendar</button>
+    <button data-tab="coach"><span class="nico">🤖</span>Coach</button>
+  </nav>
+</div>
+
+<script>
+'use strict';
+/* ═══════════════════════════════════════════════════════════════════════
+   Hollywood Liquors — AI Growth Coach (standalone demo)
+   All data is simulated deterministically from the calendar date, so the
+   dashboard always looks live and consistent between visits.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const $  = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const fmt$ = n => '$' + Math.round(n).toLocaleString('en-US');
+
+/* ── Simulated revenue engine ────────────────────────────────────────────
+   Deterministic per-day pseudo-random + weekday seasonality + holiday boosts */
+function daySeed(d){ return d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate(); }
+function prand(seed){ let x = Math.sin(seed*127.1)*43758.5453; return x - Math.floor(x); }
+const WK = [0.72, 0.62, 0.70, 0.80, 0.95, 1.35, 1.50]; // Sun..Sat
+function holidayBoost(d){
+  const m = d.getMonth()+1, day = d.getDate();
+  const key = m + '/' + day;
+  const map = {'7/3':1.55,'7/4':1.8,'12/24':1.7,'12/31':2.0,'3/17':1.6,'5/5':1.4};
+  if (map[key]) return map[key];
+  // Thanksgiving Eve = biggest bar/liquor night of the year
+  const te = new Date(thanksgiving(d.getFullYear())); te.setDate(te.getDate()-1);
+  if (d.getMonth()===te.getMonth() && d.getDate()===te.getDate()) return 1.9;
+  return 1;
+}
+function revenueFor(d){
+  const base = 4200;
+  const season = WK[d.getDay()];
+  const noise = 0.85 + prand(daySeed(d))*0.3;
+  return Math.round(base * season * noise * holidayBoost(d) / 10) * 10;
+}
+function daysBack(n){
+  const out = [];
+  for (let i=n; i>=1; i--){ // ends yesterday (today isn't closed out yet)
+    const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-i);
+    out.push({date:d, rev:revenueFor(d)});
+  }
+  return out;
+}
+
+/* ── Header greeting ────────────────────────────────────────────────────── */
+const now = new Date();
+const hr = now.getHours();
+$('#greet').textContent = (hr<12?'Good morning':hr<17?'Good afternoon':'Good evening') + ' 👋';
+$('#greet-date').textContent = now.toLocaleDateString('en-US',
+  {weekday:'long', month:'long', day:'numeric'}) + ' · here’s how to make money today';
+
+/* ── Marketing score ring ───────────────────────────────────────────────── */
+(function ring(){
+  const score = 82, R = 36, C = 2*Math.PI*R;
+  $('#score-ring').innerHTML =
+    `<svg width="86" height="86" viewBox="0 0 86 86">
+       <circle cx="43" cy="43" r="${R}" fill="none" stroke="var(--accent-track)" stroke-width="8"/>
+       <circle cx="43" cy="43" r="${R}" fill="none" stroke="var(--accent)" stroke-width="8"
+         stroke-linecap="round" stroke-dasharray="${C*score/100} ${C}"/>
+     </svg>
+     <div class="num"><b>82</b><span>of 100</span></div>`;
+})();
+
+/* ── Yesterday revenue tile + sparkline ─────────────────────────────────── */
+(function revTile(){
+  const hist = daysBack(12);
+  const y = hist[hist.length-1];
+  const lastWeek = hist[hist.length-8];
+  const pct = ((y.rev - lastWeek.rev) / lastWeek.rev * 100);
+  $('#rev-val').textContent = fmt$(y.rev);
+  const de = $('#rev-delta');
+  de.textContent = (pct>=0?'▲ +':'▼ ') + pct.toFixed(1) + '%';
+  de.className = 'delta ' + (pct>=0?'up':'down');
+
+  // 12-pt sparkline: history in recessive gray, final segment + dot in accent
+  const svg = $('#rev-spark');
+  const vals = hist.map(h=>h.rev);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const X = i => 4 + i*(132/(vals.length-1));
+  const Y = v => 26 - (max===min?0.5:(v-min)/(max-min)) * 22;
+  const pts = vals.map((v,i)=>`${X(i)},${Y(v)}`);
+  svg.innerHTML =
+    `<polyline points="${pts.slice(0,-1).join(' ')}" fill="none" stroke="var(--baseline)"
+       stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+     <polyline points="${pts.slice(-2).join(' ')}" fill="none" stroke="var(--accent)"
+       stroke-width="2" stroke-linecap="round"/>
+     <circle cx="${X(vals.length-1)}" cy="${Y(vals[vals.length-1])}" r="4"
+       fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>`;
+})();
+
+/* ── Today's opportunities ──────────────────────────────────────────────── */
+const OPPS = [
+  { emoji:'🍺', key:'bbq', title:'Launch a Weekend BBQ Bundle',
+    why:'Modelo is up 25% and Saturday hits 88°. A Modelo 12-pack + charcoal-friendly add-ons bundle converts the heat into baskets.',
+    rev:'+$550', conf:'88%' },
+  { emoji:'📸', key:'insta', title:'Post on Instagram today',
+    why:'Your last post was 6 days ago — engagement drops ~35% after a week of silence. A staff-pick post is drafted and ready.',
+    rev:'+$120', conf:'81%' },
+  { emoji:'🍹', key:'margarita', title:'Bundle tequila + margarita mix',
+    why:'64% of tequila buyers also buy mix. Shelving them together with a combo price raises average basket size.',
+    rev:'+$310', conf:'82%' },
+  { emoji:'📩', key:'winback', title:'Win back 43 lapsed regulars',
+    why:'43 repeat customers haven’t visited in 30+ days. A one-line SMS with 10% off this weekend historically brings back 1 in 4.',
+    rev:'+$700', conf:'76%' },
+];
+(function renderOpps(){
+  $('#opps').innerHTML = OPPS.map((o,i)=>`
+    <div class="opp" data-i="${i}">
+      <div class="opp-head">
+        <div class="opp-emoji">${o.emoji}</div>
+        <div>
+          <div class="opp-title">${o.title}</div>
+          <div class="opp-why">${o.why}</div>
+        </div>
+      </div>
+      <div class="opp-stats">
+        <span>Est. revenue <b>${o.rev}</b></span>
+        <span>Confidence <b>${o.conf}</b></span>
+      </div>
+      <div class="opp-actions">
+        <button class="btn small" data-launch="${o.key}">⚡ Launch campaign</button>
+        <button class="btn small ghost" data-skip="${i}">Skip</button>
+      </div>
+    </div>`).join('');
+})();
+
+/* ── Trend chart ────────────────────────────────────────────────────────── */
+let trendRange = 7;
+function niceMax(v){ const p = Math.pow(10, Math.floor(Math.log10(v)))/2; return Math.ceil(v/p)*p; }
+function drawTrend(){
+  const data = daysBack(trendRange);
+  const svgEl = $('#trend-svg');
+  const W=380, H=190, L=42, R=14, T=14, B=26;
+  const pw = W-L-R, ph = H-T-B;
+  const vals = data.map(d=>d.rev);
+  const maxV = niceMax(Math.max(...vals));
+  const X = i => L + i*(pw/(vals.length-1));
+  const Y = v => T + ph - (v/maxV)*ph;
+  const kfmt = v => v>=1000 ? '$'+(v/1000).toFixed(v%1000?1:0)+'K' : '$'+v;
+
+  // gridlines + ticks at 0 / ½ / max
+  let g = '';
+  [0, maxV/2, maxV].forEach(v=>{
+    g += `<line x1="${L}" y1="${Y(v)}" x2="${W-R}" y2="${Y(v)}" stroke="var(--grid)" stroke-width="1"/>
+          <text x="${L-6}" y="${Y(v)+3.5}" text-anchor="end" class="axis-text tick-num">${kfmt(v)}</text>`;
+  });
+  // x labels: first, middle, last
+  const lbl = d => d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  [[0,'start'],[Math.floor((vals.length-1)/2),'middle'],[vals.length-1,'end']].forEach(([i,a])=>{
+    g += `<text x="${X(i)}" y="${H-8}" text-anchor="${a}" class="axis-text">${lbl(data[i].date)}</text>`;
+  });
+
+  const linePts = vals.map((v,i)=>`${X(i)},${Y(v)}`).join(' ');
+  const areaPts = `${L},${Y(0)} ${linePts} ${X(vals.length-1)},${Y(0)}`;
+  const endI = vals.length-1;
+
+  svgEl.innerHTML = g +
+    `<line x1="${L}" y1="${Y(0)}" x2="${W-R}" y2="${Y(0)}" stroke="var(--baseline)" stroke-width="1"/>
+     <polygon points="${areaPts}" fill="var(--accent)" opacity="0.1"/>
+     <polyline points="${linePts}" fill="none" stroke="var(--accent)" stroke-width="2"
+       stroke-linecap="round" stroke-linejoin="round"/>
+     <line id="xhair" x1="0" y1="${T}" x2="0" y2="${T+ph}" stroke="var(--baseline)"
+       stroke-width="1" style="display:none"/>
+     <circle id="hovdot" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2" style="display:none"/>
+     <circle cx="${X(endI)}" cy="${Y(vals[endI])}" r="4" fill="var(--accent)"
+       stroke="var(--surface)" stroke-width="2"/>
+     <text x="${X(endI)}" y="${Y(vals[endI])-9}" text-anchor="end" class="axis-text"
+       style="font-weight:700;fill:var(--ink)">${kfmt(vals[endI])}</text>`;
+
+  // hover layer: crosshair + tooltip
+  const tip = $('#trend-tip'), wrap = $('#trend-wrap');
+  function onMove(ev){
+    const r = svgEl.getBoundingClientRect();
+    const cx = (ev.touches?ev.touches[0].clientX:ev.clientX) - r.left;
+    const sx = cx * (W/r.width);
+    const i = Math.max(0, Math.min(vals.length-1, Math.round((sx-L)/(pw/(vals.length-1)))));
+    const xh = svgEl.querySelector('#xhair'), hd = svgEl.querySelector('#hovdot');
+    xh.style.display='block'; xh.setAttribute('x1',X(i)); xh.setAttribute('x2',X(i));
+    hd.style.display='block'; hd.setAttribute('cx',X(i)); hd.setAttribute('cy',Y(vals[i]));
+    tip.style.display='block';
+    tip.innerHTML = `<b>${fmt$(vals[i])}</b><br><span style="color:var(--muted)">${
+      data[i].date.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</span>`;
+    const px = X(i)*(r.width/W);
+    tip.style.left = Math.max(4, Math.min(r.width-110, px+10)) + 'px';
+    tip.style.top = (Y(vals[i])*(r.height/H) - 46) + 'px';
+  }
+  function onLeave(){
+    tip.style.display='none';
+    svgEl.querySelector('#xhair').style.display='none';
+    svgEl.querySelector('#hovdot').style.display='none';
+  }
+  wrap.onpointermove = onMove; wrap.onpointerleave = onLeave;
+
+  // table view
+  $('#trend-table').innerHTML = '<tr><th>Date</th><th>Revenue</th></tr>' +
+    data.map(d=>`<tr><td>${d.date.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</td><td>${fmt$(d.rev)}</td></tr>`).join('');
+}
+$$('.range-row .chip').forEach(b=>b.addEventListener('click',()=>{
+  $$('.range-row .chip').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); trendRange = +b.dataset.range; drawTrend();
+}));
+
+/* ── Category movers (diverging signed bars) ────────────────────────────── */
+const MOVERS = [
+  {name:'Mexican beer', v: 25}, {name:'Vodka', v: 18}, {name:'Seltzers', v: 12},
+  {name:'Tequila', v: 9}, {name:'Whiskey', v: 4}, {name:'Cordials', v: -3}, {name:'Wine', v: -9},
+];
+(function drawMovers(){
+  const maxAbs = Math.max(...MOVERS.map(m=>Math.abs(m.v)));
+  $('#movers').innerHTML = MOVERS.map(m=>{
+    const pct = Math.abs(m.v)/maxAbs;           // bar length share
+    const pos = m.v >= 0;
+    const half = 50;                            // % position of the zero baseline
+    const w = pct*46;                           // max 46% each side
+    const barCss = pos
+      ? `left:${half}%;width:${w}%;background:var(--pos);border-radius:0 4px 4px 0`
+      : `right:${100-half}%;width:${w}%;background:var(--neg);border-radius:4px 0 0 4px`;
+    return `<div class="mover">
+      <div class="m-name">${m.name}</div>
+      <div class="m-bar" style="position:relative">
+        <div style="position:absolute;left:${half}%;top:0;bottom:0;width:1px;background:var(--baseline)"></div>
+        <div style="position:absolute;top:11px;height:12px;${barCss}"></div>
+      </div>
+      <div class="m-val ${pos?'delta up':'delta down'}">${pos?'+':''}${m.v}%</div>
+    </div>`;
+  }).join('');
+})();
+
+/* ── Top products ───────────────────────────────────────────────────────── */
+const PRODUCTS = [
+  {e:'🍺', n:'Modelo Especial 12pk', s:'142 units', d:'+25%', up:true},
+  {e:'🥃', n:"Tito's Handmade Vodka 750ml", s:'96 units', d:'+18%', up:true},
+  {e:'🍹', n:'High Noon Variety 8pk', s:'74 units', d:'+12%', up:true},
+  {e:'🥃', n:'Casamigos Blanco 750ml', s:'41 units', d:'+9%', up:true},
+  {e:'🍷', n:'Josh Cabernet 750ml', s:'38 units', d:'−9%', up:false},
+];
+$('#top-products').innerHTML = PRODUCTS.map(p=>`
+  <div class="prow">
+    <div class="pemoji">${p.e}</div>
+    <div><div class="pname">${p.n}</div><div class="psub">${p.s} this week</div></div>
+    <div class="pright"><span class="delta ${p.up?'up':'down'}">${p.up?'▲ ':'▼ '}${p.d.replace('−','')}</span></div>
+  </div>`).join('');
+
+/* ── Campaign generator ─────────────────────────────────────────────────── */
+const PROMOS = {
+  bbq: {
+    label:'🍺 Weekend BBQ Bundle',
+    lift:'Estimated lift: <b>+$550 this weekend</b> · confidence 88% · based on Modelo +25% and an 88° Saturday.',
+    ig:{t:'Instagram post', body:'☀️🔥 It’s a BBQ weekend, Boston.\n\nThe Hollywood BBQ Bundle: Modelo 12-pack + High Noon 4-pack + a bag of ice for $29.99 (save $7).\n\nGrab it chilled and go — pickup & local delivery til 10pm. 🍺🌭\n\n#BostonEats #BBQSeason #HydePark #BeerRun', meta:'Best time to post: today 4:30 PM · add a photo of the stacked bundle by the cooler'},
+    fb:{t:'Facebook post', body:'Hot one this weekend, neighbors ☀️ We built you a BBQ Bundle: Modelo 12-pack + High Noon 4-pack + free bag of ice — $29.99 all-in (save $7). In-store, pickup, or delivered cold to your door. Offer runs Fri–Sun.', meta:'Pin to top of page · boost $15 within 3 miles'},
+    sms:{t:'SMS blast', body:'Hollywood Liquors: BBQ weekend ☀️ Modelo 12pk + High Noon 4pk + free ice = $29.99 (save $7). Fri–Sun only. Order: hollywoodliquorsboston.com Reply STOP to opt out', meta:'156/160 characters · send to 412 opted-in customers, Fri 3 PM'},
+    em:{t:'Email newsletter', body:'Subject: Your BBQ weekend, sorted 🍺☀️\n\nHi {first name},\n\n88° on Saturday — we’re ready. This weekend only, the Hollywood BBQ Bundle:\n\n• Modelo Especial 12-pack\n• High Noon variety 4-pack\n• FREE bag of ice\n\n$29.99 all-in (you save $7). Order online for pickup or cold delivery, or swing by — we’re stocked.\n\n— The Hollywood Liquors crew', meta:'Send Friday 11 AM · segment: purchased beer in last 60 days'},
+  },
+  redsox: {
+    label:'⚾ Red Sox Tailgate Pack',
+    lift:'Estimated lift: <b>+$430 per homestand</b> · confidence 84% · game-day beer sales run +31% within 2 miles of transit lines.',
+    ig:{t:'Instagram post', body:'⚾ Sox are home — is your fridge ready?\n\nThe Tailgate Pack: Sam Adams 12-pack + Fenway Frank-approved seltzers + chips, $34.99.\n\nOrder by first pitch, we’ll have it cold. 🧊\n\n#RedSox #Fenway #GameDay #BostonBeer', meta:'Post 10 AM on game day · tag location'},
+    fb:{t:'Facebook post', body:'Homestand this week! ⚾ Grab the Tailgate Pack — Sam Adams 12-pack + seltzer 4-pack + snacks for $34.99. Pickup or local delivery before first pitch. Go Sox!', meta:'Boost $10 on game days only'},
+    sms:{t:'SMS blast', body:'Hollywood Liquors: Sox are home ⚾ Tailgate Pack = Sam Adams 12pk + seltzers + snacks, $34.99. Cold & ready by first pitch. Reply STOP to opt out', meta:'139/160 characters · send morning of each home game'},
+    em:{t:'Email newsletter', body:'Subject: Sox homestand = Tailgate Pack time ⚾\n\nHi {first name},\n\nThe Sox are back at Fenway this week. We put together the Tailgate Pack:\n\n• Sam Adams Boston Lager 12-pack\n• Seltzer 4-pack\n• Game-day snacks\n\n$34.99 — order online and it’s cold by first pitch.\n\n— Hollywood Liquors', meta:'Send day before first home game'},
+  },
+  margarita: {
+    label:'🍹 Margarita Night Kit',
+    lift:'Estimated lift: <b>+$310 / week</b> · confidence 82% · 64% of tequila buyers also purchase mix.',
+    ig:{t:'Instagram post', body:'🍹 Margarita night, minus the guesswork.\n\nCasamigos Blanco + premium margarita mix + limes = the Margarita Kit, $42.99 (save $6).\n\nShake, serve, repeat. Pickup & delivery daily.\n\n#MargaritaNight #Tequila #BostonDrinks', meta:'Best time: Thursday 6 PM — margarita searches peak Thu–Fri'},
+    fb:{t:'Facebook post', body:'New: the Margarita Night Kit 🍹 Casamigos Blanco + premium mix + fresh limes, bundled at $42.99 (save $6). Everything you need, one grab. In-store or delivered.', meta:'Pair with a 15-sec pour video for 3× reach'},
+    sms:{t:'SMS blast', body:'Hollywood Liquors: Margarita Night Kit 🍹 Casamigos + mix + limes = $42.99 (save $6). This week only. hollywoodliquorsboston.com Reply STOP to opt out', meta:'148/160 characters · send Thu 5 PM'},
+    em:{t:'Email newsletter', body:'Subject: Margarita night just got easier 🍹\n\nHi {first name},\n\nWe noticed something: everyone buying tequila comes back for mix. So we bundled it.\n\nThe Margarita Night Kit — Casamigos Blanco, premium margarita mix, and fresh limes for $42.99 (save $6).\n\nOne kit, zero extra trips.\n\n— Hollywood Liquors', meta:'Segment: tequila purchasers, last 90 days'},
+  },
+  insta: {
+    label:'📸 Staff Pick Spotlight',
+    lift:'Estimated lift: <b>+$120 today</b> · confidence 81% · stores posting 3×/week see ~2× repeat visits.',
+    ig:{t:'Instagram post', body:'🥃 STAFF PICK: Angel’s Envy Bourbon\n\n"Port-barrel finish — smooth enough for a Tuesday, special enough for Father’s Day." — Mike, 11 years behind this counter\n\n$54.99 this week. Come argue with him about it.\n\n#Bourbon #StaffPick #BostonWhiskey', meta:'Post today 4:30 PM · photo: Mike holding the bottle'},
+    fb:{t:'Facebook post', body:'Mike’s pick of the week: Angel’s Envy Bourbon, $54.99. Port-barrel finished, dangerously smooth. Ask him why he’s right — he’s here til close.', meta:'Personality posts get 4× the comments of price posts'},
+    sms:{t:'SMS blast', body:'Hollywood Liquors staff pick 🥃 Angel’s Envy Bourbon $54.99 this week (reg $62). While it lasts. Reply STOP to opt out', meta:'118/160 characters · optional — save SMS for bigger offers'},
+    em:{t:'Email newsletter', body:'Subject: Mike’s pick this week (he’s not wrong) 🥃\n\nHi {first name},\n\nEvery week our crew picks one bottle worth your attention. This week Mike chose Angel’s Envy Bourbon — port-barrel finished, $54.99 (reg $62).\n\n"Smooth enough for a Tuesday, special enough for a gift."\n\nIn-store, pickup, or delivery.\n\n— Hollywood Liquors', meta:'Send Wednesday · staff-pick emails average 31% open rate'},
+  },
+  winback: {
+    label:'📩 We-Miss-You Offer',
+    lift:'Estimated lift: <b>+$700 this weekend</b> · confidence 76% · 43 lapsed regulars, ~25% historical return rate.',
+    ig:{t:'Instagram post', body:'👋 Been a minute? This weekend, show this post for 10% off your basket.\n\nNew arrivals, cold cooler, same crew.\n\n#HydePark #Boston #ShopLocal', meta:'Story + feed · low effort, keeps the offer public-friendly'},
+    fb:{t:'Facebook post', body:'To our regulars we haven’t seen in a while — we noticed 👀 Mention this post for 10% off through Sunday. Come see what’s new in the cooler.', meta:'Organic only — the SMS does the heavy lifting'},
+    sms:{t:'SMS blast', body:'Hollywood Liquors: we miss you! 10% off your whole basket thru Sun — just show this text. New arrivals in the cooler 🧊 Reply STOP to opt out', meta:'143/160 characters · send ONLY to the 43 lapsed customers'},
+    em:{t:'Email newsletter', body:'Subject: 10% off — because it’s been a while 👋\n\nHi {first name},\n\nWe haven’t seen you in about a month, and that feels wrong.\n\nThrough Sunday: 10% off your entire basket, in-store or online. Show this email at the counter or use code COMEBACK10 at checkout.\n\nSee you this weekend?\n\n— Hollywood Liquors', meta:'Segment: no purchase in 30+ days · send Fri 10 AM'},
+  },
+  july4:   { alias:'bbq' },
+  laborday:{ alias:'bbq' },
+  stpats:  { alias:'redsox' },
+};
+let activePromo = 'bbq';
+(function promoChips(){
+  const keys = Object.keys(PROMOS).filter(k=>!PROMOS[k].alias);
+  $('#promo-chips').innerHTML = keys.map(k=>
+    `<button class="chip ${k===activePromo?'on':''}" data-promo="${k}">${PROMOS[k].label}</button>`).join('');
+  $$('#promo-chips .chip').forEach(b=>b.addEventListener('click',()=>{
+    $$('#promo-chips .chip').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); activePromo = b.dataset.promo;
+    $('#gen-out').classList.remove('show');
+  }));
+})();
+function generateCampaign(){
+  const p = PROMOS[PROMOS[activePromo].alias || activePromo];
+  const out = $('#gen-out'), spin = $('#gen-spin');
+  out.classList.remove('show'); out.innerHTML = '';
+  spin.classList.add('show');
+  const steps = ['Reading this week’s sales…','Checking the weekend weather…','Writing your campaign…'];
+  let si = 0; $('#gen-spin-txt').textContent = steps[0];
+  const iv = setInterval(()=>{ si++; if (si<steps.length) $('#gen-spin-txt').textContent = steps[si]; }, 550);
+  setTimeout(()=>{
+    clearInterval(iv); spin.classList.remove('show');
+    const assets = [p.ig, p.fb, p.sms, p.em];
+    out.innerHTML = `<div class="lift-line">💰 ${p.lift}</div>` + assets.map(a=>`
+      <div class="asset">
+        <div class="asset-head"><span class="a-t">${a.t}</span>
+          <button class="copy" data-copy>Copy</button></div>
+        <div class="asset-body">${a.body.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>
+        <div class="asset-meta">💡 ${a.meta}</div>
+      </div>`).join('') +
+      `<button class="btn" style="width:100%">🚀 Schedule all four (full version)</button>`;
+    out.classList.add('show');
+    $$('#gen-out .asset').forEach((el,i)=>setTimeout(()=>el.classList.add('in'), 80+i*160));
+    $$('#gen-out [data-copy]').forEach(b=>b.addEventListener('click',()=>{
+      const txt = b.closest('.asset').querySelector('.asset-body').textContent;
+      (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(
+        ()=>{ b.textContent='Copied ✓'; setTimeout(()=>b.textContent='Copy',1500); },
+        ()=>{ b.textContent='Select & copy'; });
+    }));
+  }, 1800);
+}
+$('#gen-btn').addEventListener('click', generateCampaign);
+
+/* ── Marketing calendar ─────────────────────────────────────────────────── */
+function nthWeekday(year, month, weekday, n){ // month 0-11, weekday 0-6
+  const d = new Date(year, month, 1);
+  let count = 0;
+  while (true){ if (d.getDay()===weekday && ++count===n) return new Date(d); d.setDate(d.getDate()+1); }
+}
+function lastWeekday(year, month, weekday){
+  const d = new Date(year, month+1, 0);
+  while (d.getDay()!==weekday) d.setDate(d.getDate()-1);
+  return d;
+}
+function thanksgiving(year){ return nthWeekday(year, 10, 4, 4); }
+function eventsFor(year){
+  const tg = thanksgiving(year);
+  const tgEve = new Date(tg); tgEve.setDate(tg.getDate()-1);
+  return [
+    {e:'🏈', n:'Super Bowl Sunday',    d:nthWeekday(year,1,0,2), promo:'bbq'},
+    {e:'☘️', n:'St. Patrick’s Day', d:new Date(year,2,17), promo:'stpats'},
+    {e:'⚾', n:'Red Sox Opening Day',  d:new Date(year,3,2),  promo:'redsox'},
+    {e:'🌮', n:'Cinco de Mayo',        d:new Date(year,4,5),  promo:'margarita'},
+    {e:'🎖️', n:'Memorial Day',        d:lastWeekday(year,4,1), promo:'bbq'},
+    {e:'🎆', n:'Fourth of July',       d:new Date(year,6,4),  promo:'july4'},
+    {e:'🛠️', n:'Labor Day',           d:nthWeekday(year,8,1,1), promo:'laborday'},
+    {e:'🏈', n:'NFL Kickoff',          d:nthWeekday(year,8,4,1), promo:'redsox'},
+    {e:'🎃', n:'Halloween',            d:new Date(year,9,31), promo:'margarita'},
+    {e:'🦃', n:'Thanksgiving Eve — #1 liquor night of the year', d:tgEve, promo:'winback'},
+    {e:'🎄', n:'Christmas Eve',        d:new Date(year,11,24), promo:'insta'},
+    {e:'🥂', n:'New Year’s Eve',  d:new Date(year,11,31), promo:'insta'},
+  ];
+}
+(function renderCalendar(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const evts = [...eventsFor(today.getFullYear()), ...eventsFor(today.getFullYear()+1)]
+    .filter(x=>x.d>=today).sort((a,b)=>a.d-b.d).slice(0,8);
+  $('#events').innerHTML = evts.map(x=>{
+    const days = Math.round((x.d-today)/86400000);
+    return `<div class="evt">
+      <div class="e-emoji">${x.e}</div>
+      <div>
+        <div class="e-name">${x.n}</div>
+        <div class="e-date">${x.d.toLocaleDateString('en-US',{weekday:'short',month:'long',day:'numeric'})}</div>
+      </div>
+      <div class="e-right">
+        <div class="e-days">${days===0?'today':days+'d'}</div>
+        <button class="e-prep" data-launch="${x.promo}">Prep campaign →</button>
+      </div>
+    </div>`;
+  }).join('');
+})();
+
+/* ── Coach chat ─────────────────────────────────────────────────────────── */
+const CHAT_ANSWERS = [
+  { match:/promote|today|feature|push/i,
+    a:'Push the Weekend BBQ Bundle. 🍺\n\nHere’s why: Modelo is up 25%, Saturday hits 88°, and hot weekends lift beer sales ~22%. Bundle Modelo 12-pack + High Noon 4-pack + free ice at $29.99.\n\nEstimated lift: +$550 this weekend. Tap Campaigns and I’ll write the posts for you.' },
+  { match:/down|slow|drop|wine|why/i,
+    a:'Sales dipped 4% mid-week, and it’s almost all wine (−9%). 🍷\n\nThat’s seasonal — wine softens every summer as beer and seltzers take over. Two moves:\n\n1. Shift shelf space to chilled rosé and sangria kits (summer-proof wine).\n2. Don’t discount reds now — hold them for the fall reset.' },
+  { match:/average|basket|sale|increase|upsell/i,
+    a:'Three ways to raise your average sale (currently ~$24):\n\n1. Bundles — tequila + mix is the easy win (+$2 margin per basket).\n2. Counter placement — mini bottles and limes at register add $3–5.\n3. A $50 free-delivery threshold nudges $38 carts up.\n\nStores doing all three average +14% basket size.' },
+  { match:/customer|return|lapsed|back|miss/i,
+    a:'43 of your repeat customers haven’t visited in 30+ days. 📩\n\nHistorically, a one-line SMS with 10% off brings back about 1 in 4 — that’s ~11 customers at your $65 average repeat-basket = roughly +$700.\n\nThe message is already drafted under Campaigns → We-Miss-You Offer.' },
+  { match:/holiday|coming|calendar|event/i,
+    a:'Next up on your calendar: Labor Day, then NFL Kickoff two weeks later. 🏈\n\nBiggest one on the horizon: Thanksgiving Eve — the #1 liquor sales night of the year. I’ll have campaigns drafted 10 days before each. Check the Calendar tab for the full list.' },
+  { match:/post|instagram|social|facebook/i,
+    a:'Your last Instagram post was 6 days ago — engagement drops ~35% after a week of silence. 📸\n\nBest posting rhythm for a store your size: 3×/week — one staff pick, one deal, one fun/local post. I’ve drafted today’s staff-pick post under Campaigns.' },
+];
+const CHAT_FALLBACK = 'Good question — in the full version I’d pull that straight from your POS and answer with your real numbers.\n\nFor now, try one of the quick questions below, or ask me what to promote today. 💪';
+const CHAT_CHIPS = ['What should I promote today?','Why are sales down?','How do I raise my average sale?','Which customers haven’t returned?'];
+function chatAdd(txt, who){
+  const el = document.createElement('div');
+  el.className = 'msg '+who; el.textContent = txt;
+  $('#chat-log').appendChild(el);
+  el.scrollIntoView({behavior:'smooth', block:'end'});
+}
+function chatAsk(q){
+  if (!q.trim()) return;
+  chatAdd(q,'user');
+  const hit = CHAT_ANSWERS.find(c=>c.match.test(q));
+  setTimeout(()=>chatAdd(hit?hit.a:CHAT_FALLBACK,'bot'), 650);
+}
+$('#chat-chips').innerHTML = CHAT_CHIPS.map(c=>`<button class="chip">${c}</button>`).join('');
+$$('#chat-chips .chip').forEach(b=>b.addEventListener('click',()=>chatAsk(b.textContent)));
+$('#chat-send').addEventListener('click',()=>{ chatAsk($('#chat-input').value); $('#chat-input').value=''; });
+$('#chat-input').addEventListener('keydown',e=>{ if(e.key==='Enter'){ chatAsk(e.target.value); e.target.value=''; }});
+chatAdd('Morning! ☕ I’ve gone through yesterday’s sales, this weekend’s weather, and your socials. You’ve got 4 money-making opportunities today — ask me anything, or tap a question below.','bot');
+
+/* ── Navigation + cross-tab actions ─────────────────────────────────────── */
+function goTab(name){
+  $$('.tab').forEach(t=>t.classList.toggle('active', t.id==='tab-'+name));
+  $$('nav button').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  window.scrollTo({top:0});
+}
+$$('nav button').forEach(b=>b.addEventListener('click',()=>goTab(b.dataset.tab)));
+document.addEventListener('click', e=>{
+  const launch = e.target.closest('[data-launch]');
+  if (launch){
+    const key = launch.dataset.launch;
+    const real = PROMOS[key] ? key : 'bbq';
+    activePromo = PROMOS[real].alias || real;
+    $$('#promo-chips .chip').forEach(x=>x.classList.toggle('on', x.dataset.promo===activePromo));
+    goTab('campaigns');
+    generateCampaign();
+  }
+  const skip = e.target.closest('[data-skip]');
+  if (skip){
+    const card = skip.closest('.opp');
+    card.classList.add('done');
+    card.querySelector('.opp-actions').innerHTML = '<span class="done-note">Skipped — I’ll re-suggest if the trend holds ✓</span>';
+  }
+});
+
+/* ── Initial draws + redraw on theme change ─────────────────────────────── */
+drawTrend();
+const mq = matchMedia('(prefers-color-scheme: dark)');
+if (mq.addEventListener) mq.addEventListener('change', drawTrend);
+new MutationObserver(drawTrend).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme']});
+</script>
+</body>
+</html>
