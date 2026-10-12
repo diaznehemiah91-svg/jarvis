@@ -10,6 +10,7 @@ Results are cached in SQLite to avoid redundant API calls.
 """
 import json
 import sqlite3
+import threading
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -27,6 +28,9 @@ from engine.trading import finnhub_client as finnhub
 from engine.trading.tickers import get_all_tickers, SECTOR_MAP, get_sector_for_ticker
 
 DB_PATH = "jarvis.db"
+
+QUOTE_FRESH_SEC = 20   # Finnhub live quotes
+YF_FRESH_SEC = 120     # yfinance (heavier history pull)
 
 
 def _con() -> sqlite3.Connection:
@@ -47,21 +51,33 @@ def _ema(values: list[float], period: int) -> list[float]:
 
 # ── Fetch & cache ─────────────────────────────────────────────────────────────
 
-def fetch_ticker_data(ticker: str, days: int = 30) -> list[dict]:
-    """Return cached OHLCV rows for ticker, refreshing from yfinance if stale."""
+def fetch_ticker_data(ticker: str, days: int = 30, live: bool = False) -> list[dict]:
+    """Return cached OHLCV rows for ticker, refreshing from the network if stale.
+
+    When the background refresher is running, ordinary (non-live) callers just
+    read the DB so dashboard requests never queue behind the rate limiter.
+    """
     today = datetime.now().strftime("%Y-%m-%d")
     con = _con()
     cur = con.cursor()
 
+    finnhub_live = finnhub.is_configured()
+    # Re-pull today's row once it's older than the freshness window, not just
+    # once per day — otherwise intraday prices freeze at the first fetch.
+    window = QUOTE_FRESH_SEC if finnhub_live else YF_FRESH_SEC
     cur.execute(
-        "SELECT * FROM market_data WHERE ticker=? AND trade_date=? LIMIT 1",
-        (ticker, today),
+        "SELECT 1 FROM market_data WHERE ticker=? AND trade_date=? "
+        "AND fetched_at >= datetime('now', ?) LIMIT 1",
+        (ticker, today, f"-{window} seconds"),
     )
     already_fresh = cur.fetchone() is not None
+    if not already_fresh and not live and _refresher_running():
+        cur.execute("SELECT 1 FROM market_data WHERE ticker=? AND trade_date=? LIMIT 1",
+                    (ticker, today))
+        already_fresh = cur.fetchone() is not None
     con.close()
 
     # 1. Finnhub real-time quote → today's snapshot (primary source)
-    finnhub_live = finnhub.is_configured()
     if not already_fresh and finnhub_live:
         _pull_from_finnhub(ticker)
 
@@ -137,7 +153,9 @@ def _pull_from_yfinance(ticker: str, days: int) -> None:
         end = datetime.now()
         start = end - timedelta(days=days + 30)  # extra for EMA warmup
         t = yf.Ticker(ticker)
-        hist = t.history(start=start.strftime("%Y-%m-%d"), end=end.strftime("%Y-%m-%d"))
+        # `end` is exclusive — push it to tomorrow so today's live bar is included.
+        hist = t.history(start=start.strftime("%Y-%m-%d"),
+                         end=(end + timedelta(days=1)).strftime("%Y-%m-%d"))
         if hist.empty:
             return
 
@@ -161,6 +179,7 @@ def _pull_from_yfinance(ticker: str, days: int) -> None:
                     (ticker, trade_date, open, high, low, close, volume, ema_21, volume_ratio)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(ticker, trade_date) DO UPDATE SET
+                    open=excluded.open, high=excluded.high, low=excluded.low,
                     close=excluded.close, volume=excluded.volume,
                     ema_21=excluded.ema_21, volume_ratio=excluded.volume_ratio,
                     fetched_at=datetime('now')
@@ -366,9 +385,40 @@ def refresh_all_tickers(days: int = 30) -> dict:
     ok, failed = [], []
     for t in tickers:
         try:
-            fetch_ticker_data(t, days)
+            fetch_ticker_data(t, days, live=True)
             ok.append(t)
         except Exception as e:
             failed.append(t)
             print(f"[refresh] {t} failed: {e}")
     return {"refreshed": ok, "failed": failed}
+
+
+# ── Background refresher ──────────────────────────────────────────────────────
+
+_refresh_thread = [None]
+_refresh_wake = threading.Event()
+
+
+def _refresher_running() -> bool:
+    t = _refresh_thread[0]
+    return bool(t and t.is_alive())
+
+
+def _refresh_loop(pause: float) -> None:
+    while True:
+        try:
+            refresh_all_tickers(days=30)
+        except Exception as e:
+            print(f"[refresh] sweep failed: {e}")
+        _refresh_wake.wait(pause)
+        _refresh_wake.clear()
+
+
+def start_background_refresh(pause: float = 10.0) -> None:
+    """Keep every tracked ticker warm in the DB so dashboard calls never block on the network."""
+    if _refresher_running():
+        _refresh_wake.set()
+        return
+    t = threading.Thread(target=_refresh_loop, args=(pause,), daemon=True, name="jarvis-refresh")
+    _refresh_thread[0] = t
+    t.start()

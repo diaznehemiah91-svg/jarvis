@@ -37,7 +37,7 @@ _MIN_INTERVAL = 1.05
 _last_call = [0.0]
 
 # TTLs (seconds)
-TTL_QUOTE = 60
+TTL_QUOTE = 15
 TTL_RECOMMENDATION = 12 * 3600
 TTL_NEWS = 2 * 3600
 TTL_INSIDER = 12 * 3600
@@ -139,8 +139,9 @@ def _cache_get(cache_key: str, ttl: int):
         if not row:
             return None
         payload, fetched_at = row
-        ts = datetime.fromisoformat(fetched_at)
-        if datetime.now() - ts > timedelta(seconds=ttl):
+        age = datetime.now() - datetime.fromisoformat(fetched_at)
+        # Negative age = legacy row stamped in UTC; treat as stale.
+        if age < timedelta(0) or age > timedelta(seconds=ttl):
             return None
         return json.loads(payload)
     except Exception:
@@ -154,11 +155,11 @@ def _cache_set(cache_key: str, value) -> None:
         cur.execute(
             """
             INSERT INTO api_cache (cache_key, payload, fetched_at)
-            VALUES (?, ?, datetime('now'))
+            VALUES (?, ?, ?)
             ON CONFLICT(cache_key) DO UPDATE SET
-                payload=excluded.payload, fetched_at=datetime('now')
+                payload=excluded.payload, fetched_at=excluded.fetched_at
             """,
-            (cache_key, json.dumps(value)),
+            (cache_key, json.dumps(value), datetime.now().isoformat()),
         )
         con.commit()
         con.close()
