@@ -33,6 +33,10 @@ try:
 except Exception as _e:
     print('initial flow scan skipped:', _e)
 
+# Keep quotes flowing in the background so API calls read warm data.
+from engine.trading.market_data import start_background_refresh
+start_background_refresh()
+
 app = Flask(__name__, static_folder=WWW_DIR)
 
 # ── Serve static files ────────────────────────────────────────────────────────
@@ -185,11 +189,13 @@ def getRegimeHistory(days=7):
 
 @api('refreshMarketData')
 def refreshMarketData():
-    return json.dumps({"status": "ok"})
+    from engine.trading.market_data import start_background_refresh
+    start_background_refresh()
+    return json.dumps({"status": "refresh_started"})
 
 @api('triggerBackgroundRefresh')
 def triggerBackgroundRefresh():
-    return json.dumps({"status": "refresh_started"})
+    return refreshMarketData()
 
 @api('runRedditSentiment')
 def runRedditSentiment():

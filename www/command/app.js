@@ -55,7 +55,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadAll();
   loadNews();                              // populate the overview Breaking-News rail
   setInterval(loadNews, 4 * 60 * 1000);    // refresh headlines every 4 min
-  setInterval(loadAll, 5 * 60 * 1000); // auto-refresh every 5 min
+  // Backend keeps prices warm in the background, so a 60s reload is cheap.
+  let loading = false;
+  setInterval(async () => {
+    if (document.hidden || loading) return;
+    loading = true;
+    try { await loadAll(); } finally { loading = false; }
+  }, 60 * 1000);
 
   // Greet once data is ready
   setTimeout(() => {

@@ -10,7 +10,7 @@ import eel
 from engine.trading.db_schema import init_trading_db
 from engine.trading.tickers import SECTOR_MAP, get_all_tickers
 from engine.trading.market_data import (
-    get_sector_snapshot, refresh_all_tickers, get_technical_bias,
+    get_sector_snapshot, get_technical_bias, start_background_refresh,
 )
 from engine.trading.sentiment import (
     score_reddit, score_news, get_aggregate_sentiment,
@@ -30,6 +30,7 @@ from engine.trading.opportunities import (
 
 # Initialize DB on import
 init_trading_db()
+start_background_refresh()
 
 
 # ── Sector & Ticker data ──────────────────────────────────────────────────────
@@ -52,8 +53,8 @@ def getSectorSnapshot(sector_key: str):
 
 @eel.expose
 def refreshMarketData():
-    result = refresh_all_tickers()
-    return json.dumps(result)
+    start_background_refresh()
+    return json.dumps({"status": "refresh_started"})
 
 
 # ── Sentiment ─────────────────────────────────────────────────────────────────
@@ -220,8 +221,8 @@ def setApiKey(provider: str = "finnhub", key: str = ""):
 # ── Background refresh ────────────────────────────────────────────────────────
 
 def _background_refresh():
-    """Runs in a daemon thread — refreshes market data then triggers sentiment."""
-    refresh_all_tickers()
+    """Runs in a daemon thread — wakes the price refresher then rescores sentiment."""
+    start_background_refresh()
     score_reddit()
     score_news()
 

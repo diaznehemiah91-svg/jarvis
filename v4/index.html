@@ -439,14 +439,18 @@ const PROXIES = [
   url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
 ];
 
+// Remember the last proxy that worked so each refresh doesn't re-time-out
+// through dead routes before reaching a live one.
+let goodProxy = 0;
 async function tryFetch(url, timeout = 6000) {
-  for (const px of PROXIES) {
+  const order = [goodProxy, ...PROXIES.keys()].filter((v, i, a) => a.indexOf(v) === i);
+  for (const idx of order) {
     try {
       const ctrl = new AbortController();
       const id = setTimeout(() => ctrl.abort(), timeout);
-      const r = await fetch(px(url), { signal: ctrl.signal });
+      const r = await fetch(PROXIES[idx](url), { signal: ctrl.signal });
       clearTimeout(id);
-      if (r.ok) return r;
+      if (r.ok) { goodProxy = idx; return r; }
     } catch(e) {}
   }
   return null;
@@ -494,12 +498,12 @@ async function fetchAll(syms) {
   const BATCH = 20;
   const batches = [];
   for (let i = 0; i < syms.length; i += BATCH) batches.push(syms.slice(i, i+BATCH));
-  let ok = false;
-  for (const b of batches) {
+  const res = await Promise.all(batches.map(async b => {
     const r = await fetchBatch(b);
-    if (r) ok = true;
     b.forEach(s => onQuoteUpdate(s));
-  }
+    return r;
+  }));
+  const ok = res.some(Boolean);
   if (ok) { dataConnected = true; updateDataStatus(); }
   return ok;
 }
@@ -1543,22 +1547,49 @@ async function boot() {
     updateIndexHeader();
   });
 
-  // Auto-refresh every 60s
-  setInterval(async () => {
-    if (document.hidden) return;
-    await fetchBatch([...priority, ...getAllTickers()].slice(0,40));
-    priority.forEach(s => onQuoteUpdate(s));
-    if (Q['^VIX']) Q['VIX'] = Q['^VIX'];
-    updateIndexHeader(); renderMovers(); renderSignals();
-    if (selectedSym) onQuoteUpdate(selectedSym);
-    // Refresh chart for selected ticker
-    if (selectedSym) {
-      const cacheKey = `${selectedSym}_${chartInterval}_${chartRange}`;
-      delete chartCache[cacheKey];
-      const candles = await fetchChartData(selectedSym, chartInterval, chartRange);
-      if (candles) { chartCache[cacheKey]=candles; drawChart(candles, computeIndicators(candles)); }
-    }
-  }, 60000);
+  startFinnhubStream();
+
+  // Adaptive refresh of the WHOLE universe: fast during market hours, slower
+  // when closed or when the Finnhub stream is already pushing live ticks.
+  let lastChartRefresh = 0;
+  const refreshLoop = async () => {
+    try {
+      if (!document.hidden) {
+        await fetchAll([...new Set([...priority, ...getAllTickers()])]);
+        if (Q['^VIX']) Q['VIX'] = Q['^VIX'];
+        updateIndexHeader(); renderMovers(); renderSignals();
+        if (selectedSym) onQuoteUpdate(selectedSym);
+        syncStreamSubs();
+        if (selectedSym && Date.now() - lastChartRefresh > 30000) {
+          lastChartRefresh = Date.now();
+          const cacheKey = `${selectedSym}_${chartInterval}_${chartRange}`;
+          const candles = await fetchChartData(selectedSym, chartInterval, chartRange);
+          if (candles) { chartCache[cacheKey]=candles; drawChart(candles, computeIndicators(candles)); }
+        }
+      }
+    } catch(e) { console.error('[refresh]', e); }
+    setTimeout(refreshLoop, refreshDelayMs());
+  };
+  setTimeout(refreshLoop, refreshDelayMs());
+
+  // Catch up immediately when the tab/window comes back into view.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) { fetchAll(getAllTickers()).then(() => { renderMovers(); renderSignals(); }); }
+  });
+}
+
+function marketOpenNow() {
+  const et = new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));
+  const d = et.getDay(), mins = et.getHours()*60 + et.getMinutes();
+  return d >= 1 && d <= 5 && mins >= 4*60 && mins < 20*60; // pre-market through after-hours
+}
+
+function refreshDelayMs() {
+  const cfg = getSettings();
+  const finnhubRest = cfg.finnhubKey && cfg.dataSource === 'finnhub';
+  if (finnhubRest) return 60000;            // rate-limited REST; stream covers live price
+  if (!marketOpenNow()) return 60000;
+  return streamActive() ? 30000 : 15000;
 }
 
 /* =========================================================
@@ -1604,6 +1635,7 @@ document.getElementById('sm-save-btn').onclick = () => {
   s.dataSource = src;
   saveSettings(s);
   refreshSettingsBadges();
+  startFinnhubStream();
   settingsOverlay.classList.remove('open');
   const parts = [];
   if (s.geminiKey) parts.push('Gemini AI <span class="pos">ACTIVE</span>');
@@ -1661,6 +1693,7 @@ document.getElementById('sm-clear-settings').onclick = () => {
   document.getElementById('sm-gemini-key').value = '';
   document.getElementById('sm-finnhub-key').value = '';
   document.getElementById('sm-data-src').value = 'yahoo';
+  stopFinnhubStream();
   refreshSettingsBadges();
   addMsg('All API keys cleared from browser storage.', 'system');
 };
@@ -1697,17 +1730,89 @@ async function fetchFinnhubBatch(symbols) {
   if (!s.finnhubKey) return false;
   const key = s.finnhubKey;
   let anyOk = false;
-  const CHUNK = 6; // stay under 60 req/min
+  // Free tier = 60 req/min: 5 requests per 5.2s keeps us at ~57/min.
+  const CHUNK = 5;
   for (let i = 0; i < symbols.length; i += CHUNK) {
     const chunk = symbols.slice(i, i + CHUNK);
     const results = await Promise.all(chunk.map(sym => fetchFinnhubSymbol(sym, key)));
     if (results.some(Boolean)) anyOk = true;
     chunk.forEach(s => onQuoteUpdate(s));
-    if (i + CHUNK < symbols.length) await new Promise(r => setTimeout(r, 1100));
+    if (i + CHUNK < symbols.length) await new Promise(r => setTimeout(r, 5200));
   }
   if (anyOk) { lastFetchOk = Date.now(); dataConnected = true; updateDataStatus(); }
   return anyOk;
 }
+
+/* =========================================================
+   FINNHUB WEBSOCKET — tick-by-tick trade stream (free tier)
+   REST gives prev-close/high/low; the stream moves the price live.
+   ========================================================= */
+const STREAM_MAX_SYMS = 50; // free-tier subscription cap
+let fhWs = null, fhWsKey = null, fhWsBackoff = 1000, fhSubscribed = new Set();
+const streamDirty = new Set();
+
+function streamSymbols() {
+  const priority = ['SPY','QQQ','NVDA','TSLA','PLTR','AMD','MSFT','AAPL','META'];
+  const extra = selectedSym ? [selectedSym] : [];
+  return [...new Set([...extra, ...priority, ...getAllTickers()])]
+    .filter(s => !s.startsWith('^'))
+    .slice(0, STREAM_MAX_SYMS);
+}
+
+function syncStreamSubs() {
+  if (!fhWs || fhWs.readyState !== 1) return;
+  const want = new Set(streamSymbols());
+  fhSubscribed.forEach(s => { if (!want.has(s)) { fhWs.send(JSON.stringify({type:'unsubscribe', symbol:s})); fhSubscribed.delete(s); } });
+  want.forEach(s => { if (!fhSubscribed.has(s)) { fhWs.send(JSON.stringify({type:'subscribe', symbol:s})); fhSubscribed.add(s); } });
+}
+
+function startFinnhubStream() {
+  const key = getSettings().finnhubKey;
+  if (!key) { stopFinnhubStream(); return; }
+  if (fhWs && fhWsKey === key && fhWs.readyState <= 1) { syncStreamSubs(); return; }
+  stopFinnhubStream();
+  fhWsKey = key;
+  const ws = new WebSocket(`wss://ws.finnhub.io?token=${encodeURIComponent(key)}`);
+  fhWs = ws;
+  ws.onopen = () => { fhWsBackoff = 1000; fhSubscribed = new Set(); syncStreamSubs(); };
+  ws.onmessage = ev => {
+    let msg; try { msg = JSON.parse(ev.data); } catch(e) { return; }
+    if (msg.type !== 'trade' || !Array.isArray(msg.data)) return;
+    for (const t of msg.data) {
+      const q = Q[t.s];
+      if (!q || t.p == null) continue;
+      q.px = t.p;
+      if (q.prevClose) { q.chg = t.p - q.prevClose; q.chgPct = (q.chg / q.prevClose) * 100; }
+      if (q.hi == null || t.p > q.hi) q.hi = t.p;
+      if (q.lo == null || t.p < q.lo) q.lo = t.p;
+      q.fetched = Date.now();
+      streamDirty.add(t.s);
+    }
+    lastFetchOk = Date.now(); dataConnected = true;
+  };
+  ws.onclose = () => {
+    if (fhWs !== ws) return;
+    fhWs = null;
+    setTimeout(startFinnhubStream, fhWsBackoff);
+    fhWsBackoff = Math.min(fhWsBackoff * 2, 30000);
+  };
+  ws.onerror = () => { try { ws.close(); } catch(e) {} };
+}
+
+function stopFinnhubStream() {
+  const ws = fhWs; fhWs = null; fhWsKey = null; fhSubscribed = new Set();
+  if (ws) try { ws.close(); } catch(e) {}
+}
+
+function streamActive() { return !!(fhWs && fhWs.readyState === 1); }
+
+// Flush streamed ticks to the DOM at most 4×/sec instead of per trade.
+setInterval(() => {
+  if (!streamDirty.size || document.hidden) return;
+  const syms = [...streamDirty]; streamDirty.clear();
+  syms.forEach(s => onQuoteUpdate(s));
+  updateDataStatus();
+}, 250);
 
 /* =========================================================
    GEMINI AI — key from settings only, NEVER in source code
